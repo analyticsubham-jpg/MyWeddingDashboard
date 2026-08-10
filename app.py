@@ -119,22 +119,25 @@ DATA_FILE = "wedding_data.json"
 # -----------------------------------------------------------------------------
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            loaded_data = json.load(f)
-            if "tattha" not in loaded_data:
-                loaded_data["tattha"] = {"patipatra": [], "ashirwad": []}
-            if "ashirwad_catering_expenses" not in loaded_data["catering"]:
-                # Backwards compatibility migration
-                old_val = loaded_data["catering"].get("ashirwad_catering_total", 0)
-                loaded_data["catering"]["ashirwad_catering_expenses"] = [
-                    {"desc": "Initial Ashirwad Amount", "amount": old_val, "date": "Legacy"}
-                ] if old_val > 0 else []
-            return loaded_data
+        try:
+            with open(DATA_FILE, "r") as f:
+                loaded_data = json.load(f)
+                if "tattha" not in loaded_data:
+                    loaded_data["tattha"] = {"patipatra": [], "ashirwad": []}
+                if "ashirwad_catering_expenses" not in loaded_data.get("catering", {}):
+                    loaded_data["catering"]["ashirwad_catering_expenses"] = []
+                return loaded_data
+        except Exception:
+            pass
     return DEFAULT_DATA
 
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    st.session_state.db = data
+    try:
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception:
+        pass
 
 if "db" not in st.session_state:
     st.session_state.db = load_data()
@@ -355,7 +358,7 @@ with tabs[2]:
     with col_a:
         st.subheader("Ashirwad Catering Sub-section")
         ash_desc = st.text_input("Ashirwad Food / Item Description", key="ash_desc")
-        ash_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="ash_amt")
+        ash_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="ash_amt", value=0.0)
         
         if st.button("Add/Deduct Ashirwad Expense"):
             if ash_desc and ash_amt != 0:
@@ -375,7 +378,7 @@ with tabs[2]:
     with col_b:
         st.subheader("Marriage Daily Food Expenses")
         d_desc = st.text_input("Food Item / Day Description", key="df_desc")
-        d_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="df_amt")
+        d_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="df_amt", value=0.0)
         
         if st.button("Add/Deduct Daily Food Expense"):
             if d_desc and d_amt != 0:
@@ -401,7 +404,7 @@ with tabs[3]:
     
     st.subheader("Add / Deduct Extra Decoration Charges")
     dec_desc = st.text_input("Description (e.g. Extra Lighting / Stage Change)", key="dec_desc")
-    dec_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="dec_amt")
+    dec_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="dec_amt", value=0.0)
     
     if st.button("Save Decoration Adjustment"):
         if dec_desc and dec_amt != 0:
@@ -434,7 +437,7 @@ with tabs[4]:
     with col_p1:
         st.subheader("Pre-Wedding Items")
         pw_desc = st.text_input("Pre-wedding expense desc (e.g. Breakfast, Vehicle)", key="pw_desc")
-        pw_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="pw_amt")
+        pw_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="pw_amt", value=0.0)
         if st.button("Add Pre-Wedding Expense"):
             if pw_desc and pw_amt != 0:
                 p_data["pre_wedding_items"].append({"desc": pw_desc, "amount": pw_amt, "date": get_current_date()})
@@ -446,7 +449,7 @@ with tabs[4]:
     with col_p2:
         st.subheader("Wedding Extra Expenses")
         we_desc = st.text_input("Extra expense desc", key="we_desc")
-        we_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="we_amt")
+        we_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="we_amt", value=0.0)
         if st.button("Add Wedding Extra"):
             if we_desc and we_amt != 0:
                 p_data["wedding_extra_items"].append({"desc": we_desc, "amount": we_amt, "date": get_current_date()})
@@ -463,7 +466,7 @@ with tabs[5]:
     st.info(f"**Contact:** {bp_data['contact']} | **Contracted Total:** ₹{bp_data['total']:,} | **Advance Paid:** ₹{bp_data['advance_paid']:,}")
     
     bp_desc = st.text_input("Adjustment Description", key="bp_desc")
-    bp_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="bp_amt")
+    bp_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="bp_amt", value=0.0)
     if st.button("Save Band Party Adjustment"):
         if bp_desc and bp_amt != 0:
             bp_data["adjustments"].append({"desc": bp_desc, "amount": bp_amt, "date": get_current_date()})
@@ -482,7 +485,7 @@ with tabs[6]:
     st.info(f"**Contact:** {m_data['contact']} | **Contracted Total:** ₹{m_data['total']:,} | **Advance Paid:** ₹{m_data['advance_paid']:,}")
     
     m_desc = st.text_input("Adjustment Description", key="m_desc")
-    m_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="m_amt")
+    m_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="m_amt", value=0.0)
     if st.button("Save Makeup Adjustment"):
         if m_desc and m_amt != 0:
             m_data["adjustments"].append({"desc": m_desc, "amount": m_amt, "date": get_current_date()})
