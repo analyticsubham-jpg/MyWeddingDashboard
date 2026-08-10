@@ -16,7 +16,6 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 TOTAL_BUDGET = 833000
 
-# Expected Budgets for all 11 Categories
 EXPECTED_BUDGETS = {
     "banquet": 35000,
     "catering": 400000,
@@ -54,7 +53,7 @@ DEFAULT_DATA = {
         "booking_date": "Jan 29, 2026",
         "advance_paid": 2000,
         "number_of_plates": 0,
-        "ashirwad_catering_total": 0,
+        "ashirwad_catering_expenses": [],
         "daily_food_expenses": []
     },
     "decorator": {
@@ -124,6 +123,12 @@ def load_data():
             loaded_data = json.load(f)
             if "tattha" not in loaded_data:
                 loaded_data["tattha"] = {"patipatra": [], "ashirwad": []}
+            if "ashirwad_catering_expenses" not in loaded_data["catering"]:
+                # Backwards compatibility migration
+                old_val = loaded_data["catering"].get("ashirwad_catering_total", 0)
+                loaded_data["catering"]["ashirwad_catering_expenses"] = [
+                    {"desc": "Initial Ashirwad Amount", "amount": old_val, "date": "Legacy"}
+                ] if old_val > 0 else []
             return loaded_data
     return DEFAULT_DATA
 
@@ -153,8 +158,9 @@ banquet_total_spend = b_data["advance_paid"] + electric_cost + diesel_cost + ban
 # 2. Catering
 c_data = db["catering"]
 main_catering_total = c_data["number_of_plates"] * c_data["per_plate_rate"]
+ashirwad_catering_total = sum(item["amount"] for item in c_data.get("ashirwad_catering_expenses", []))
 daily_food_total = sum(item["amount"] for item in c_data.get("daily_food_expenses", []))
-catering_total_spend = (c_data["advance_paid"] if c_data["number_of_plates"] == 0 else main_catering_total) + c_data["ashirwad_catering_total"] + daily_food_total
+catering_total_spend = (c_data["advance_paid"] if c_data["number_of_plates"] == 0 else main_catering_total) + ashirwad_catering_total + daily_food_total
 
 # 3. Decorator
 d_data = db["decorator"]
@@ -270,14 +276,12 @@ with tabs[0]:
 
     df = pd.DataFrame(categories_data)
     
-    # Compute Spend %
     def calc_pct(row):
         ref = row["Expected Budget (₹)"] if row["Expected Budget (₹)"] > 0 else TOTAL_BUDGET
         return (row["Actual Spend (₹)"] / ref) * 100 if ref > 0 else 0.0
 
     df["Spend %"] = df.apply(calc_pct, axis=1)
 
-    # Style overbudget (>100%)
     def style_dataframe(df):
         def highlight_overbudget(s):
             return ['color: red; font-weight: bold' if v > 100 else '' for v in s]
@@ -350,25 +354,43 @@ with tabs[2]:
     col_a, col_b = st.columns(2)
     with col_a:
         st.subheader("Ashirwad Catering Sub-section")
-        ash_amt = st.number_input("Ashirwad Catering Final Amount (₹)", value=float(c_data["ashirwad_catering_total"]))
-        if st.button("Update Ashirwad Total"):
-            c_data["ashirwad_catering_total"] = ash_amt
-            save_data(db)
-            st.success("Ashirwad amount updated!")
-            st.rerun()
+        ash_desc = st.text_input("Ashirwad Food / Item Description", key="ash_desc")
+        ash_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="ash_amt")
+        
+        if st.button("Add/Deduct Ashirwad Expense"):
+            if ash_desc and ash_amt != 0:
+                c_data["ashirwad_catering_expenses"].append({"desc": ash_desc, "amount": ash_amt, "date": get_current_date()})
+                save_data(db)
+                st.success("Ashirwad entry updated!")
+                st.rerun()
+                
+        st.write(f"**Total Ashirwad Catering Expense:** ₹{ashirwad_catering_total:,}")
+        st.markdown("---")
+        st.write("**Ashirwad Transaction Log:**")
+        if not c_data.get("ashirwad_catering_expenses"):
+            st.caption("No items added yet.")
+        for item in c_data.get("ashirwad_catering_expenses", []):
+            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
     with col_b:
         st.subheader("Marriage Daily Food Expenses")
         d_desc = st.text_input("Food Item / Day Description", key="df_desc")
         d_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="df_amt")
+        
         if st.button("Add/Deduct Daily Food Expense"):
             if d_desc and d_amt != 0:
                 c_data["daily_food_expenses"].append({"desc": d_desc, "amount": d_amt, "date": get_current_date()})
                 save_data(db)
+                st.success("Daily food entry saved!")
                 st.rerun()
         
-        for item in c_data["daily_food_expenses"]:
-            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+        st.write(f"**Total Daily Food Expense:** ₹{daily_food_total:,}")
+        st.markdown("---")
+        st.write("**Daily Food Transaction Log:**")
+        if not c_data.get("daily_food_expenses"):
+            st.caption("No items added yet.")
+        for item in c_data.get("daily_food_expenses", []):
+            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
 # -----------------------------------------------------------------------------
 # TAB 3: DECORATOR
