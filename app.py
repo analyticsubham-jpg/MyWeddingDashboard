@@ -263,30 +263,34 @@ with tabs[0]:
 
     df = pd.DataFrame(categories_data)
     
-    # Calculate Spend %
+    # Compute Spend %
     def calc_pct(row):
         ref = row["Expected Budget (₹)"] if row["Expected Budget (₹)"] > 0 else TOTAL_BUDGET
-        return (row["Actual Spend (₹)"] / ref) * 100 if ref > 0 else 0
+        return (row["Actual Spend (₹)"] / ref) * 100 if ref > 0 else 0.0
 
     df["Spend %"] = df.apply(calc_pct, axis=1)
 
-    # Styling helper for overbudget (> 100%)
-    def highlight_overbudget(val):
-        color = 'red' if val > 100 else 'black'
-        font_weight = 'bold' if val > 100 else 'normal'
-        return f'color: {color}; font-weight: {font_weight}'
+    # Style overbudget (>100%) cleanly
+    def style_dataframe(df):
+        def highlight_overbudget(s):
+            return ['color: red; font-weight: bold' if v > 100 else '' for v in s]
+        
+        return df.style.format({
+            "Expected Budget (₹)": lambda x: f"₹{x:,.2f}" if x > 0 else "N/A",
+            "Actual Spend (₹)": lambda x: f"₹{x:,.2f}",
+            "Spend %": lambda x: f"{x:.1f}%"
+        }).apply(highlight_overbudget, subset=["Spend %"])
 
-    # Format numbers cleanly
-    styled_df = df.style.format({
-        "Expected Budget (₹)": lambda x: f"₹{x:,.2f}" if x > 0 else "N/A",
-        "Actual Spend (₹)": lambda x: f"₹{x:,.2f}",
-        "Spend %": lambda x: f"{x:.1f}%"
-    }).applymap(highlight_overbudget, subset=["Spend %"]).set_table_styles([
-        {'selector': 'th', 'props': [('text-align', 'center')]},
-        {'selector': 'td', 'props': [('text-align', 'center')]}
-    ])
-
-    st.dataframe(styled_df, use_container_width=True)
+    st.dataframe(
+        style_dataframe(df),
+        use_container_width=True,
+        column_config={
+            "Category": st.column_config.Column(alignment="center"),
+            "Expected Budget (₹)": st.column_config.Column(alignment="center"),
+            "Actual Spend (₹)": st.column_config.Column(alignment="center"),
+            "Spend %": st.column_config.Column(alignment="center"),
+        }
+    )
 
 # -----------------------------------------------------------------------------
 # TAB 1: BANQUET HALL
