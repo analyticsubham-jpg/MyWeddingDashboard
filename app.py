@@ -210,6 +210,14 @@ total_advances_paid = (
     p_data["subham_advance_paid"] + bp_data["advance_paid"] + m_data["advance_paid"]
 )
 
+# Helper function to compute and format percentage
+def calculate_spend_pct(actual, budget):
+    ref_budget = budget if budget > 0 else TOTAL_BUDGET
+    pct = (actual / ref_budget) * 100 if ref_budget > 0 else 0
+    if pct > 100:
+        return f"<span style='color:red; font-weight:bold;'>{pct:.1f}%</span>"
+    return f"{pct:.1f}%"
+
 # -----------------------------------------------------------------------------
 # MAIN UI
 # -----------------------------------------------------------------------------
@@ -246,20 +254,69 @@ tabs = st.tabs([
 # -----------------------------------------------------------------------------
 with tabs[0]:
     st.subheader("Category Wise Breakdown")
-    summary_df = pd.DataFrame([
-        {"Category": "Banquet Hall", "Expected Budget (₹)": banquet_expected_budget, "Actual Spend (₹)": banquet_total_spend},
-        {"Category": "Catering", "Expected Budget (₹)": catering_expected_budget, "Actual Spend (₹)": catering_total_spend},
-        {"Category": "Decorator", "Expected Budget (₹)": decorator_expected_budget, "Actual Spend (₹)": decorator_total_spend},
-        {"Category": "Photography", "Expected Budget (₹)": photography_expected_budget, "Actual Spend (₹)": photography_gross_spend},
-        {"Category": "Band Party", "Expected Budget (₹)": band_expected_budget, "Actual Spend (₹)": band_total_spend},
-        {"Category": "Makeup", "Expected Budget (₹)": makeup_expected_budget, "Actual Spend (₹)": makeup_total_spend},
-        {"Category": "Marriage Card", "Expected Budget (₹)": card_expected_budget, "Actual Spend (₹)": card_total_spend},
-        {"Category": "Vehicle", "Expected Budget (₹)": v_expected_budget, "Actual Spend (₹)": v_total_spend},
-        {"Category": "Pronami", "Expected Budget (₹)": pr_expected_budget, "Actual Spend (₹)": pr_total_spend},
-        {"Category": "Tattha", "Expected Budget (₹)": tattha_expected_budget, "Actual Spend (₹)": tattha_total_spend},
-        {"Category": "Shopping", "Expected Budget (₹)": shopping_expected_budget, "Actual Spend (₹)": shopping_total_spend},
-    ])
-    st.dataframe(summary_df, use_container_width=True)
+    
+    categories = [
+        ("Banquet Hall", banquet_expected_budget, banquet_total_spend),
+        ("Catering", catering_expected_budget, catering_total_spend),
+        ("Decorator", decorator_expected_budget, decorator_total_spend),
+        ("Photography", photography_expected_budget, photography_gross_spend),
+        ("Band Party", band_expected_budget, band_total_spend),
+        ("Makeup", makeup_expected_budget, makeup_total_spend),
+        ("Marriage Card", card_expected_budget, card_total_spend),
+        ("Vehicle", v_expected_budget, v_total_spend),
+        ("Pronami", pr_expected_budget, pr_total_spend),
+        ("Tattha", tattha_expected_budget, tattha_total_spend),
+        ("Shopping", shopping_expected_budget, shopping_total_spend),
+    ]
+
+    # Generate HTML Table with center alignment and custom formatting for >100%
+    table_html = """
+    <style>
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+        .custom-table th, .custom-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center !important;
+        }
+        .custom-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+    </style>
+    <table class="custom-table">
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Expected Budget (₹)</th>
+                <th>Actual Spend (₹)</th>
+                <th>Spend %</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
+    for cat, bud, act in categories:
+        pct_html = calculate_spend_pct(act, bud)
+        bud_str = f"₹{bud:,.2f}" if bud > 0 else "N/A"
+        table_html += f"""
+            <tr>
+                <td>{cat}</td>
+                <td>{bud_str}</td>
+                <td>₹{act:,.2f}</td>
+                <td>{pct_html}</td>
+            </tr>
+        """
+        
+    table_html += """
+        </tbody>
+    </table>
+    """
+    
+    st.markdown(table_html, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # TAB 1: BANQUET HALL
