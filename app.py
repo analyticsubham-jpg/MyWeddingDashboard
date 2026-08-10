@@ -138,7 +138,7 @@ c_data = db["catering"]
 main_catering_total = c_data["number_of_plates"] * c_data["per_plate_rate"]
 daily_food_total = sum(item["amount"] for item in c_data.get("daily_food_expenses", []))
 catering_total_spend = (c_data["advance_paid"] if c_data["number_of_plates"] == 0 else main_catering_total) + c_data["ashirwad_catering_total"] + daily_food_total
-catering_expected_budget = 0  # Dynamic based on plates or estimated limit
+catering_expected_budget = 0 
 
 # 3. Decorator
 d_data = db["decorator"]
@@ -152,7 +152,7 @@ pre_wedding_total = sum(item["amount"] for item in p_data.get("pre_wedding_items
 wedding_extra_total = sum(item["amount"] for item in p_data.get("wedding_extra_items", []))
 shared_photo_extras = pre_wedding_total + wedding_extra_total
 photography_gross_spend = p_data["subham_advance_paid"] + shared_photo_extras
-photography_expected_budget = p_data["wedding_gross"] + 30000  # 145k + 30k pre-wedding
+photography_expected_budget = p_data["wedding_gross"] + 30000
 
 groom_photo_share = p_data["groom_wedding_share"] + (shared_photo_extras / 2.0)
 bride_photo_share = p_data["bride_wedding_share"] + (shared_photo_extras / 2.0)
@@ -210,14 +210,6 @@ total_advances_paid = (
     p_data["subham_advance_paid"] + bp_data["advance_paid"] + m_data["advance_paid"]
 )
 
-# Helper function to compute and format percentage
-def calculate_spend_pct(actual, budget):
-    ref_budget = budget if budget > 0 else TOTAL_BUDGET
-    pct = (actual / ref_budget) * 100 if ref_budget > 0 else 0
-    if pct > 100:
-        return f"<span style='color:red; font-weight:bold;'>{pct:.1f}%</span>"
-    return f"{pct:.1f}%"
-
 # -----------------------------------------------------------------------------
 # MAIN UI
 # -----------------------------------------------------------------------------
@@ -255,68 +247,46 @@ tabs = st.tabs([
 with tabs[0]:
     st.subheader("Category Wise Breakdown")
     
-    categories = [
-        ("Banquet Hall", banquet_expected_budget, banquet_total_spend),
-        ("Catering", catering_expected_budget, catering_total_spend),
-        ("Decorator", decorator_expected_budget, decorator_total_spend),
-        ("Photography", photography_expected_budget, photography_gross_spend),
-        ("Band Party", band_expected_budget, band_total_spend),
-        ("Makeup", makeup_expected_budget, makeup_total_spend),
-        ("Marriage Card", card_expected_budget, card_total_spend),
-        ("Vehicle", v_expected_budget, v_total_spend),
-        ("Pronami", pr_expected_budget, pr_total_spend),
-        ("Tattha", tattha_expected_budget, tattha_total_spend),
-        ("Shopping", shopping_expected_budget, shopping_total_spend),
+    categories_data = [
+        {"Category": "Banquet Hall", "Expected Budget (₹)": banquet_expected_budget, "Actual Spend (₹)": banquet_total_spend},
+        {"Category": "Catering", "Expected Budget (₹)": catering_expected_budget, "Actual Spend (₹)": catering_total_spend},
+        {"Category": "Decorator", "Expected Budget (₹)": decorator_expected_budget, "Actual Spend (₹)": decorator_total_spend},
+        {"Category": "Photography", "Expected Budget (₹)": photography_expected_budget, "Actual Spend (₹)": photography_gross_spend},
+        {"Category": "Band Party", "Expected Budget (₹)": band_expected_budget, "Actual Spend (₹)": band_total_spend},
+        {"Category": "Makeup", "Expected Budget (₹)": makeup_expected_budget, "Actual Spend (₹)": makeup_total_spend},
+        {"Category": "Marriage Card", "Expected Budget (₹)": card_expected_budget, "Actual Spend (₹)": card_total_spend},
+        {"Category": "Vehicle", "Expected Budget (₹)": v_expected_budget, "Actual Spend (₹)": v_total_spend},
+        {"Category": "Pronami", "Expected Budget (₹)": pr_expected_budget, "Actual Spend (₹)": pr_total_spend},
+        {"Category": "Tattha", "Expected Budget (₹)": tattha_expected_budget, "Actual Spend (₹)": tattha_total_spend},
+        {"Category": "Shopping", "Expected Budget (₹)": shopping_expected_budget, "Actual Spend (₹)": shopping_total_spend},
     ]
 
-    # Generate HTML Table with center alignment and custom formatting for >100%
-    table_html = """
-    <style>
-        .custom-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: center;
-        }
-        .custom-table th, .custom-table td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: center !important;
-        }
-        .custom-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-    </style>
-    <table class="custom-table">
-        <thead>
-            <tr>
-                <th>Category</th>
-                <th>Expected Budget (₹)</th>
-                <th>Actual Spend (₹)</th>
-                <th>Spend %</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
+    df = pd.DataFrame(categories_data)
     
-    for cat, bud, act in categories:
-        pct_html = calculate_spend_pct(act, bud)
-        bud_str = f"₹{bud:,.2f}" if bud > 0 else "N/A"
-        table_html += f"""
-            <tr>
-                <td>{cat}</td>
-                <td>{bud_str}</td>
-                <td>₹{act:,.2f}</td>
-                <td>{pct_html}</td>
-            </tr>
-        """
-        
-    table_html += """
-        </tbody>
-    </table>
-    """
-    
-    st.markdown(table_html, unsafe_allow_html=True)
+    # Calculate Spend %
+    def calc_pct(row):
+        ref = row["Expected Budget (₹)"] if row["Expected Budget (₹)"] > 0 else TOTAL_BUDGET
+        return (row["Actual Spend (₹)"] / ref) * 100 if ref > 0 else 0
+
+    df["Spend %"] = df.apply(calc_pct, axis=1)
+
+    # Styling helper for overbudget (> 100%)
+    def highlight_overbudget(val):
+        color = 'red' if val > 100 else 'black'
+        font_weight = 'bold' if val > 100 else 'normal'
+        return f'color: {color}; font-weight: {font_weight}'
+
+    # Format numbers cleanly
+    styled_df = df.style.format({
+        "Expected Budget (₹)": lambda x: f"₹{x:,.2f}" if x > 0 else "N/A",
+        "Actual Spend (₹)": lambda x: f"₹{x:,.2f}",
+        "Spend %": lambda x: f"{x:.1f}%"
+    }).applymap(highlight_overbudget, subset=["Spend %"]).set_table_styles([
+        {'selector': 'th', 'props': [('text-align', 'center')]},
+        {'selector': 'td', 'props': [('text-align', 'center')]}
+    ])
+
+    st.dataframe(styled_df, use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # TAB 1: BANQUET HALL
