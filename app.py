@@ -14,7 +14,6 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 # CONSTANTS & INITIAL DATA STRUCTURE
 # -----------------------------------------------------------------------------
-# Updated to match the sum of all individual expected budgets (833,000 + 20,000 vehicle increase)
 TOTAL_BUDGET = 853000
 
 EXPECTED_BUDGETS = {
@@ -44,8 +43,9 @@ DEFAULT_DATA = {
         "facilities": ["200 Chairs", "25 Tables", "Music System", "2 rooms with Bed"],
         "electric_start_reading": 0,
         "electric_end_reading": 0,
-        "diesel_hours": 0,
+        "diesel_hours": 0.0,
         "diesel_price_per_liter": 95,
+        "settlement_payments": [],
         "extra_expenses": []
     },
     "catering": {
@@ -151,6 +151,8 @@ if "catering" in db and "ashirwad_catering_expenses" not in db["catering"]:
     db["catering"]["ashirwad_catering_expenses"] = []
 if "miscellaneous" not in db:
     db["miscellaneous"] = {"expenses": []}
+if "banquet" in db and "settlement_payments" not in db["banquet"]:
+    db["banquet"]["settlement_payments"] = []
 
 def get_current_date():
     return datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -162,9 +164,16 @@ def get_current_date():
 b_data = db["banquet"]
 units_consumed = max(0, b_data.get("electric_end_reading", 0) - b_data.get("electric_start_reading", 0))
 electric_cost = units_consumed * b_data.get("electric_rate", 20)
-diesel_cost = b_data.get("diesel_hours", 0) * b_data.get("diesel_rate_per_hr", 5) * b_data.get("diesel_price_per_liter", 95)
+diesel_hours = float(b_data.get("diesel_hours", 0.0))
+diesel_cost = diesel_hours * b_data.get("diesel_rate_per_hr", 5) * b_data.get("diesel_price_per_liter", 95)
 banquet_extra = sum(item["amount"] for item in b_data.get("extra_expenses", []))
-banquet_total_spend = b_data.get("advance_paid", 0) + electric_cost + diesel_cost + banquet_extra
+banquet_calculated_total_cost = b_data.get("total_fare", 25000) + electric_cost + diesel_cost + banquet_extra
+
+banquet_additional_payments = sum(item["amount"] for item in b_data.get("settlement_payments", []))
+banquet_total_paid = b_data.get("advance_paid", 5000) + banquet_additional_payments
+banquet_pending_balance = max(0, banquet_calculated_total_cost - banquet_total_paid)
+
+banquet_total_spend = banquet_total_paid
 
 # 2. Catering
 c_data = db["catering"]
@@ -326,15 +335,15 @@ with tabs[0]:
 # -----------------------------------------------------------------------------
 with tabs[1]:
     st.header("1. Banquet Hall - Sanai Bhawan")
-    st.info(f"**Contact:** {b_data.get('contacts','')} | **Booked:** {b_data.get('booking_date','')} | **Advance Paid:** ₹{b_data.get('advance_paid',0):,}")
-    st.markdown("**Facilities:** " + ", ".join(b_data.get("facilities", [])))
+    st.info(f"**Contact:** {b_data.get('contacts','')} | **Booked:** {b_data.get('booking_date','')} | **Initial Advance Paid:** ₹{b_data.get('advance_paid',5000):,}")
+    st.markdown("**Facilities Included:** " + ", ".join(b_data.get("facilities", [])))
     
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Meter & Fuel Readings")
+        st.subheader("1. Meter & Fuel Readings")
         start_r = st.number_input("Electric Machine Start Reading", value=int(b_data.get("electric_start_reading", 0)))
         end_r = st.number_input("Electric Machine End Reading", value=int(b_data.get("electric_end_reading", 0)))
-        hrs = st.number_input("Diesel Run Hours (5L/hr)", value=float(b_data.get("diesel_hours", 0)))
+        hrs = st.number_input("Diesel Run Hours (5L/hr)", value=float(b_data.get("diesel_hours", 0.0)))
         
         if st.button("Save Readings"):
             b_data["electric_start_reading"] = start_r
@@ -345,12 +354,41 @@ with tabs[1]:
             st.rerun()
 
     with c2:
-        st.subheader("Financial Status")
-        st.write(f"**Base Fare:** ₹{b_data.get('total_fare',0):,}")
+        st.subheader("2. Financial Status & Final Settlement")
+        st.write(f"**Base Fare:** ₹{b_data.get('total_fare',25000):,}")
         st.write(f"**Electricity ({units_consumed} units @ ₹20/unit):** ₹{electric_cost:,}")
-        st.write(f"**Diesel ({hrs} hrs @ 5L/hr):** ₹{diesel_cost:,}")
-        st.write(f"**Actual Spend So Far:** ₹{banquet_total_spend:,}")
-        st.write(f"**Expected Budget:** ₹{EXPECTED_BUDGETS['banquet']:,}")
+        st.write(f"**Diesel ({diesel_hours:.1f} hrs @ 5L/hr):** ₹{diesel_cost:,}")
+        st.markdown(f"### **Total Calculated Hall Cost:** ₹{banquet_calculated_total_cost:,}")
+        st.write(f"**Initial Advance Paid:** ₹{b_data.get('advance_paid',5000):,}")
+        st.write(f"**Additional Payments Logged:** ₹{banquet_additional_payments:,}")
+        st.write(f"**Total Paid So Far (Actual Spend):** ₹{banquet_total_paid:,}")
+        
+        if banquet_pending_balance > 0:
+            st.warning(f"**Pending Balance Due to Vendor:** ₹{banquet_pending_balance:,}")
+        else:
+            st.success("**Full Amount Paid / Settled!**")
+
+    st.divider()
+    st.subheader("3. Log Final / Settlement Payments to Sanai Bhawan")
+    b_pay_desc = st.text_input("Payment Description (e.g., Remaining Base Fare, Electric & Diesel Final Settlement)", key="b_pay_desc")
+    b_pay_amt = st.number_input("Amount Paid (₹)", value=0.0, key="b_pay_amt")
+    
+    if st.button("Record Payment to Vendor"):
+        if b_pay_desc and b_pay_amt > 0:
+            b_data.setdefault("settlement_payments", []).append({
+                "desc": b_pay_desc,
+                "amount": b_pay_amt,
+                "date": get_current_date()
+            })
+            save_data(db)
+            st.success("Payment recorded successfully!")
+            st.rerun()
+            
+    st.write("**Payment Log History:**")
+    if not b_data.get("settlement_payments"):
+        st.caption("No final payments logged yet besides the initial ₹5,000 advance.")
+    for item in b_data.get("settlement_payments", []):
+        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
 # -----------------------------------------------------------------------------
 # TAB 2: CATERING
