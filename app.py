@@ -153,6 +153,8 @@ if "miscellaneous" not in db:
     db["miscellaneous"] = {"expenses": []}
 if "banquet" in db and "settlement_payments" not in db["banquet"]:
     db["banquet"]["settlement_payments"] = []
+if "pronami" not in db:
+    db["pronami"] = {"expenses": []}
 
 def get_current_date():
     return datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -216,7 +218,8 @@ card_total_spend = (mc_data.get("per_card_price", 0) * mc_data.get("total_cards"
 v_total_spend = sum(item["amount"] for item in db["vehicle"].get("expenses", []))
 
 # 9. Pronami
-pr_total_spend = sum(item["amount"] for item in db["pronami"].get("expenses", []))
+pronami_expenses = db.setdefault("pronami", {}).setdefault("expenses", [])
+pr_total_spend = sum(item["amount"] for item in pronami_expenses)
 
 # 10. Tattha
 t_patipatra = sum(item["amount"] for item in db["tattha"].get("patipatra", []))
@@ -585,26 +588,30 @@ with tabs[8]:
             
     st.subheader(f"Total Vehicle Expense: ₹{v_total_spend:,}")
     for item in db["vehicle"].get("expenses", []):
-        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
 # -----------------------------------------------------------------------------
 # TAB 9: PRONAMI
 # -----------------------------------------------------------------------------
 with tabs[9]:
     st.header("9. Pronami")
-    pr_desc = st.text_input("Pronami Description (e.g. Choto Pisi pronami)")
+    pr_desc = st.text_input("Pronami Description (e.g. Choto Pisi pronami)", key="pr_desc")
     pr_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", value=0.0, key="pr_amt")
     
     if st.button("Add / Deduct Pronami Expense"):
         if pr_desc and pr_amt != 0:
-            db["pronami"].setdefault("expenses", []).append({"desc": pr_desc, "amount": pr_amt, "date": get_current_date()})
+            db.setdefault("pronami", {}).setdefault("expenses", []).append({"desc": pr_desc, "amount": pr_amt, "date": get_current_date()})
             save_data(db)
             st.success("Pronami entry saved!")
             st.rerun()
             
     st.subheader(f"Total Pronami Expense: ₹{pr_total_spend:,}")
-    for item in db["pronami"].get("expenses", []):
-        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+    st.markdown("---")
+    st.write("**Pronami Transaction Log:**")
+    if not pronami_expenses:
+        st.caption("No pronami items added yet.")
+    for item in pronami_expenses:
+        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
 # -----------------------------------------------------------------------------
 # TAB 10: TATTHA (PATIPATRA & ASHIRWAD)
@@ -628,7 +635,7 @@ with tabs[10]:
                 
         st.write(f"**Subtotal Patipatra Tattha:** ₹{t_patipatra:,}")
         for item in db["tattha"].get("patipatra", []):
-            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
             
     with col_t2:
         st.subheader("2. Ashirwad Tattha")
@@ -644,7 +651,7 @@ with tabs[10]:
                 
         st.write(f"**Subtotal Ashirwad Tattha:** ₹{t_ashirwad:,}")
         for item in db["tattha"].get("ashirwad", []):
-            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
             
     st.divider()
     st.subheader(f"Total Combined Tattha Expense: ₹{tattha_total_spend:,}")
@@ -671,7 +678,7 @@ with tabs[11]:
             
     st.subheader(f"Current Entries for {labels[sections.index(selected_sec)]}")
     for item in db["shopping"].get(selected_sec, []):
-        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
 
 # -----------------------------------------------------------------------------
 # TAB 12: MISCELLANEOUS
