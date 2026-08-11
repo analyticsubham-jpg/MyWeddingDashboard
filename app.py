@@ -24,10 +24,11 @@ EXPECTED_BUDGETS = {
     "band_party": 46000,
     "makeup": 17000,
     "marriage_card": 5000,
-    "vehicle": 20000,
+    "vehicle": 40000,
     "pronami": 30000,
     "tattha": 30000,
-    "shopping": 40000
+    "shopping": 40000,
+    "miscellaneous": 0
 }
 
 DEFAULT_DATA = {
@@ -109,6 +110,9 @@ DEFAULT_DATA = {
         "mother": [],
         "my_shopping": [],
         "briddhi": []
+    },
+    "miscellaneous": {
+        "expenses": []
     }
 }
 
@@ -145,6 +149,8 @@ if "tattha" not in db:
     db["tattha"] = {"patipatra": [], "ashirwad": []}
 if "catering" in db and "ashirwad_catering_expenses" not in db["catering"]:
     db["catering"]["ashirwad_catering_expenses"] = []
+if "miscellaneous" not in db:
+    db["miscellaneous"] = {"expenses": []}
 
 def get_current_date():
     return datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -216,11 +222,14 @@ s_my = sum(item["amount"] for item in db["shopping"].get("my_shopping", []))
 s_briddhi = sum(item["amount"] for item in db["shopping"].get("briddhi", []))
 shopping_total_spend = s_moumita + s_father + s_mother + s_my + s_briddhi
 
+# 12. Miscellaneous (Others)
+misc_total_spend = sum(item["amount"] for item in db.setdefault("miscellaneous", {}).get("expenses", []))
+
 # Grand Totals
 grand_actual_spend = (
     banquet_total_spend + catering_total_spend + decorator_total_spend + photography_gross_spend +
     band_total_spend + makeup_total_spend + card_total_spend + v_total_spend + pr_total_spend +
-    tattha_total_spend + shopping_total_spend
+    tattha_total_spend + shopping_total_spend + misc_total_spend
 )
 
 remaining_budget = TOTAL_BUDGET - grand_actual_spend
@@ -258,7 +267,8 @@ tabs = st.tabs([
     "8. Vehicle",
     "9. Pronami",
     "10. Tattha",
-    "11. Shopping"
+    "11. Shopping",
+    "12. Miscellaneous"
 ])
 
 # -----------------------------------------------------------------------------
@@ -279,6 +289,7 @@ with tabs[0]:
         {"Category": "Pronami", "Expected Budget (₹)": EXPECTED_BUDGETS["pronami"], "Actual Spend (₹)": pr_total_spend},
         {"Category": "Tattha", "Expected Budget (₹)": EXPECTED_BUDGETS["tattha"], "Actual Spend (₹)": tattha_total_spend},
         {"Category": "Shopping", "Expected Budget (₹)": EXPECTED_BUDGETS["shopping"], "Actual Spend (₹)": shopping_total_spend},
+        {"Category": "Miscellaneous (Others)", "Expected Budget (₹)": EXPECTED_BUDGETS["miscellaneous"], "Actual Spend (₹)": misc_total_spend},
     ]
 
     df = pd.DataFrame(categories_data)
@@ -623,3 +634,29 @@ with tabs[11]:
     st.subheader(f"Current Entries for {labels[sections.index(selected_sec)]}")
     for item in db["shopping"].get(selected_sec, []):
         st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+
+# -----------------------------------------------------------------------------
+# TAB 12: MISCELLANEOUS
+# -----------------------------------------------------------------------------
+with tabs[12]:
+    st.header("12. Miscellaneous (Other Expenses)")
+    st.caption("Add any unlisted or uncategorized wedding expenses here.")
+    
+    misc_desc = st.text_input("Expense Description / Reason", key="misc_desc")
+    misc_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", value=0.0, key="misc_amt")
+    
+    if st.button("Add / Deduct Miscellaneous Expense"):
+        if misc_desc and misc_amt != 0:
+            db.setdefault("miscellaneous", {}).setdefault("expenses", []).append({"desc": misc_desc, "amount": misc_amt, "date": get_current_date()})
+            save_data(db)
+            st.success("Miscellaneous expense entry saved!")
+            st.rerun()
+            
+    st.subheader(f"Total Miscellaneous Expense: ₹{misc_total_spend:,}")
+    st.markdown("---")
+    st.write("**Miscellaneous Transaction Log:**")
+    misc_list = db.get("miscellaneous", {}).get("expenses", [])
+    if not misc_list:
+        st.caption("No miscellaneous items added yet.")
+    for item in misc_list:
+        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
