@@ -14,6 +14,7 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 # CONSTANTS & INITIAL DATA STRUCTURE
 # -----------------------------------------------------------------------------
+# Updated to match the sum of all individual expected budgets (833,000 + 20,000 vehicle increase)
 TOTAL_BUDGET = 853000
 
 EXPECTED_BUDGETS = {
@@ -144,7 +145,6 @@ if "db" not in st.session_state:
 
 db = st.session_state.db
 
-# Ensure missing keys exist in active session database dynamically
 if "tattha" not in db:
     db["tattha"] = {"patipatra": [], "ashirwad": []}
 if "catering" in db and "ashirwad_catering_expenses" not in db["catering"]:
