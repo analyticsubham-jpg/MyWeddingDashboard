@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wedding Expense Live Dashboard</title>
+  <style>
+    :root { --primary: #ff477e; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; --red: #ef4444; --green: #22c55e; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 12px; }
+    h2, h3 { margin: 6px 0; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .kpi-card { background: var(--card); padding: 14px; border-radius: 10px; border-left: 4px solid var(--primary); text-align: center; }
+    .kpi-title { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; }
+    .kpi-val { font-size: 1.25rem; font-weight: bold; margin-top: 4px; }
+    .tabs { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #334155; }
+    .tab-btn { background: var(--card); color: var(--text); border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
+    .tab-btn.active { background: var(--primary); font-weight: bold; }
+    .tab-content { display: none; background: var(--card); padding: 16px; border-radius: 10px; }
+    .tab-content.active { display: block; }
+    input, select, button { width: 100%; box-sizing: border-box; padding: 10px; margin: 6px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 0.95rem; }
+    button { background: var(--primary); border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+    th, td { border: 1px solid #334155; padding: 10px; text-align: center; }
+    th { background: #0f172a; }
+    .log-item { background: #0f172a; padding: 10px; border-radius: 6px; margin-top: 6px; font-size: 0.85rem; border-left: 3px solid var(--accent); }
+    .overbudget { color: var(--red); font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h2>💍 Wedding Expense Live Dashboard</h2>
+  <p style="font-size:0.8rem; color:#94a3b8;">Real-time 2-way Google Sheets Sync</p>
+
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-title">Total Budget</div><div class="kpi-val" id="kpi-budget">₹8,53,000</div></div>
+    <div class="kpi-card"><div class="kpi-title">Actual Spent</div><div class="kpi-val" id="kpi-spent" style="color:var(--accent);">₹0</div></div>
+    <div class="kpi-card"><div class="kpi-title">Remaining</div><div class="kpi-val" id="kpi-remain" style="color:var(--green);">₹8,53,000</div></div>
+    <div class="kpi-card"><div class="kpi-title">Advances Paid</div><div class="kpi-val" id="kpi-advances">₹67,000</div></div>
+  </div>
+
+  <div class="tabs" id="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('overview')">📊 Overview</button>
+    <button class="tab-btn" onclick="switchTab('banquet')">1. Banquet</button>
+    <button class="tab-btn" onclick="switchTab('catering')">2. Catering</button>
+    <button class="tab-btn" onclick="switchTab('decorator')">3. Decorator</button>
+    <button class="tab-btn" onclick="switchTab('photo')">4. Photography</button>
+    <button class="tab-btn" onclick="switchTab('card')">7. Card</button>
+    <button class="tab-btn" onclick="switchTab('log')">➕ Quick Entry</button>
+  </div>
+
+  <div id="tab-overview" class="tab-content active">
+    <h3>Category Wise Breakdown</h3>
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Expected Budget</th><th>Actual Spend</th><th>Spend %</th></tr>
+      </thead>
+      <tbody id="overview-tbody"></tbody>
+    </table>
+  </div>
+
+  <div id="tab-banquet" class="tab-content">
+    <h3>1. Banquet Hall - Sanai Bhawan</h3>
+    <p><b>Fixed Advance:</b> ₹5,000 | <b>Base Fare:</b> ₹25,000</p>
+    <label>Start Electric Reading</label><input type="number" id="b-elec-start" />
+    <label>End Electric Reading</label><input type="number" id="b-elec-end" />
+    <label>Diesel Run Hours (5L/hr @ ₹95/L)</label><input type="number" step="0.1" id="b-diesel-hrs" />
+    <button onclick="saveBanquetConfig()">Save Meter Readings</button>
+    <div id="banquet-summary" style="margin-top:14px;"></div>
+  </div>
+
+  <div id="tab-catering" class="tab-content">
+    <h3>2. Catering - Shanti Caterer</h3>
+    <p><b>Rate:</b> ₹650/plate | <b>Advance:</b> ₹2,000</p>
+    <label>Total Plates Count</label><input type="number" id="c-plates" />
+    <button onclick="savePlates()">Save Plate Count</button>
+  </div>
+
+  <div id="tab-photo" class="tab-content">
+    <h3>4. Photography - Bijit Photography</h3>
+    <p><b>Contract:</b> ₹1,45,000 (Subham: ₹70,000 | Bride: ₹75,000)</p>
+    <div id="photo-settlement" style="margin-bottom:12px;"></div>
+  </div>
+
+  <div id="tab-card" class="tab-content">
+    <h3>7. Marriage Card</h3>
+    <label>Per Piece Rate (₹)</label><input type="number" id="card-rate" />
+    <label>Total Cards Count</label><input type="number" id="card-count" />
+    <label>Extra Printing / Courier (₹)</label><input type="number" id="card-extra" />
+    <button onclick="saveCardConfig()">Save Card Calculation</button>
+  </div>
+
+  <div id="tab-log" class="tab-content">
+    <h3>➕ Add / Deduct Transaction</h3>
+    <label>Category</label>
+    <select id="log-cat" onchange="updateSubCats()">
+      <option value="catering">Catering (Ashirwad / Daily)</option>
+      <option value="decorator">Decorator</option>
+      <option value="photo">Photography (Pre-Wedding/Wedding Extra)</option>
+      <option value="band">Band Party</option>
+      <option value="makeup">Makeup</option>
+      <option value="vehicle">Vehicle</option>
+      <option value="pronami">Pronami</option>
+      <option value="tattha">Tattha</option>
+      <option value="shopping">Shopping</option>
+      <option value="misc">Miscellaneous</option>
+    </select>
+    <label>Sub-section</label><select id="log-subcat"></select>
+    <label>Description</label><input type="text" id="log-desc" placeholder="e.g. Saree, Breakfast, Stage change" />
+    <label>Amount (Positive to Add, Negative to Deduct)</label><input type="number" id="log-amt" />
+    <button onclick="submitExpense()">Submit Entry</button>
+    <h3 style="margin-top:16px;">Live Activity Log</h3>
+    <div id="recent-logs"></div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwB8mOx6isDnkS7i9pTPal_lryZ3j5zLWTf91c4kblNjCQCq2iOZ4h9Wmw3rhwwerID/exec";
+    const TOTAL_BUDGET = 853000;
+    const BUDGETS = {
+      banquet: 35000, catering: 400000, decorator: 110000, photo: 100000,
+      band: 46000, makeup: 17000, card: 5000, vehicle: 40000,
+      pronami: 30000, tattha: 30000, shopping: 40000, misc: 0
+    };
+
+    let state = { expenses: [], config: {} };
+
+    const SUB_CATS = {
+      catering: ["Ashirwad Catering", "Daily Food"],
+      photo: ["Pre-Wedding", "Wedding Extra"],
+      tattha: ["Patipatra Tattha", "Ashirwad Tattha"],
+      shopping: ["Moumita", "Father", "Mother", "My Shopping", "Briddhi"],
+      vehicle: ["General"], pronami: ["General"], band: ["General"], makeup: ["General"], decorator: ["General"], misc: ["General"]
+    };
+
+    function updateSubCats() {
+      const cat = document.getElementById("log-cat").value;
+      const sub = document.getElementById("log-subcat");
+      sub.innerHTML = "";
+      (SUB_CATS[cat] || ["General"]).forEach(s => {
+        sub.innerHTML += `<option value="${s}">${s}</option>`;
+      });
+    }
+    updateSubCats();
+
+    function switchTab(id) {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      document.getElementById(`tab-${id}`).classList.add("active");
+      event.target.classList.add("active");
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(SCRIPT_URL);
+        const data = await res.json();
+        if (data.status === "success") {
+          state = data;
+          render();
+        }
+      } catch (err) {
+        console.error("Sync Error:", err);
+      }
+    }
+
+    function render() {
+      const c = state.config || {};
+      document.getElementById("b-elec-start").value = c.electric_start || 0;
+      document.getElementById("b-elec-end").value = c.electric_end || 0;
+      document.getElementById("b-diesel-hrs").value = c.diesel_hours || 0;
+      document.getElementById("c-plates").value = c.catering_plates || 0;
+      document.getElementById("card-rate").value = c.card_price || 0;
+      document.getElementById("card-count").value = c.card_count || 0;
+      document.getElementById("card-extra").value = c.card_extra || 0;
+
+      const units = Math.max(0, (Number(c.electric_end) || 0) - (Number(c.electric_start) || 0));
+      const elecCost = units * 20;
+      const dieselCost = (Number(c.diesel_hours) || 0) * 5 * 95;
+      const banquetSpend = 5000 + elecCost + dieselCost;
+
+      const platesCost = (Number(c.catering_plates) || 0) * 650;
+      const cateringCustom = sumCategory("catering");
+      const cateringSpend = (platesCost > 0 ? platesCost : 2000) + cateringCustom;
+
+      const cardCost = ((Number(c.card_price) || 0) * (Number(c.card_count) || 0)) + (Number(c.card_extra) || 0);
+
+      const photoExtras = sumCategory("photo");
+      const photoGross = 42000 + photoExtras;
+      const groomShare = 70000 + (photoExtras / 2);
+      const brideShare = 75000 + (photoExtras / 2);
+
+      const catSpends = {
+        banquet: banquetSpend,
+        catering: cateringSpend,
+        decorator: 10000 + sumCategory("decorator"),
+        photo: photoGross,
+        band: 5000 + sumCategory("band"),
+        makeup: 3000 + sumCategory("makeup"),
+        card: cardCost,
+        vehicle: sumCategory("vehicle"),
+        pronami: sumCategory("pronami"),
+        tattha: sumCategory("tattha"),
+        shopping: sumCategory("shopping"),
+        misc: sumCategory("misc")
+      };
+
+      let totalSpent = Object.values(catSpends).reduce((a, b) => a + b, 0);
+      document.getElementById("kpi-spent").innerText = `₹${totalSpent.toLocaleString()}`;
+      document.getElementById("kpi-remain").innerText = `₹${(TOTAL_BUDGET - totalSpent).toLocaleString()}`;
+
+      const catNames = {
+        banquet: "Banquet Hall", catering: "Catering", decorator: "Decorator", photo: "Photography",
+        band: "Band Party", makeup: "Makeup", card: "Marriage Card", vehicle: "Vehicle",
+        pronami: "Pronami", tattha: "Tattha", shopping: "Shopping", misc: "Miscellaneous"
+      };
+
+      let tbody = "";
+      for (let k in catSpends) {
+        const bud = BUDGETS[k];
+        const sp = catSpends[k];
+        const pct = bud > 0 ? ((sp / bud) * 100).toFixed(1) : ((sp / TOTAL_BUDGET) * 100).toFixed(1);
+        const over = pct > 100 ? "class='overbudget'" : "";
+        tbody += `<tr><td>${catNames[k]}</td><td>₹${bud.toLocaleString()}</td><td>₹${sp.toLocaleString()}</td><td ${over}>${pct}%</td></tr>`;
+      }
+      document.getElementById("overview-tbody").innerHTML = tbody;
+
+      document.getElementById("banquet-summary").innerHTML = `
+        <div class="log-item">Electricity: ${units} units (₹${elecCost}) | Diesel: ₹${dieselCost}</div>
+        <div class="log-item"><b>Total Banquet Spend:</b> ₹${banquetSpend.toLocaleString()}</div>
+      `;
+
+      document.getElementById("photo-settlement").innerHTML = `
+        <div class="log-item"><b>Subham Share:</b> ₹${groomShare.toLocaleString()} | <b>Bride Share:</b> ₹${brideShare.toLocaleString()}</div>
+        <div class="log-item" style="border-left-color:var(--primary);"><b>Receivable from Bride:</b> ₹${brideShare.toLocaleString()}</div>
+      `;
+
+      let logHtml = "";
+      state.expenses.slice().reverse().forEach(e => {
+        logHtml += `<div class="log-item">[${e.timestamp}] <b>${e.category.toUpperCase()} (${e.subSection})</b>: ${e.desc} - <b>₹${e.amount}</b></div>`;
+      });
+      document.getElementById("recent-logs").innerHTML = logHtml || "<p>No entries yet.</p>";
+    }
+
+    function sumCategory(cat) {
+      return (state.expenses || [])
+        .filter(e => e.category === cat)
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+    }
+
+    async function submitExpense() {
+      const payload = {
+        action: "add_expense",
+        timestamp: new Date().toLocaleString(),
+        category: document.getElementById("log-cat").value,
+        subSection: document.getElementById("log-subcat").value,
+        desc: document.getElementById("log-desc").value,
+        amount: Number(document.getElementById("log-amt").value)
+      };
+      if (!payload.desc || !payload.amount) return alert("Fill description and amount");
+      await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("log-desc").value = "";
+      document.getElementById("log-amt").value = "";
+      loadData();
+    }
+
+    async function saveBanquetConfig() {
+      const payload = {
+        action: "update_config",
+        config: {
+          electric_start: document.getElementById("b-elec-start").value,
+          electric_end: document.getElementById("b-elec-end").value,
+          diesel_hours: document.getElementById("b-diesel-hrs").value
+        }
+      };
+      await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      loadData();
+    }
+
+    async function savePlates() {
+      const payload = {
+        action: "update_config",
+        config: { catering_plates: document.getElementById("c-plates").value }
+      };
+      await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      loadData();
+    }
+
+    async function saveCardConfig() {
+      const payload = {
+        action: "update_config",
+        config: {
+          card_price: document.getElementById("card-rate").value,
+          card_count: document.getElementById("card-count").value,
+          card_extra: document.getElementById("card-extra").value
+        }
+      };
+      await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      loadData();
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
