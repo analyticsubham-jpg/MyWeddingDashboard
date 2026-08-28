@@ -131,7 +131,7 @@ def load_data():
             res = requests.get(url, headers=headers)
             if res.status_code == 200:
                 record = res.json().get("record", {})
-                if record:
+                if record and "banquet" in record:
                     return record
         except Exception:
             pass
@@ -282,10 +282,10 @@ with tabs[1]:
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Meter & Fuel Readings")
-        start_r = st.number_input("Electric Machine Start Reading", value=int(b_data.get("electric_start_reading", 0)))
-        end_r = st.number_input("Electric Machine End Reading", value=int(b_data.get("electric_end_reading", 0)))
-        hrs = st.number_input("Diesel Run Hours (5L/hr)", value=float(b_data.get("diesel_hours", 0.0)))
-        if st.button("Save Readings"):
+        start_r = st.number_input("Electric Machine Start Reading", value=int(b_data.get("electric_start_reading", 0)), key="b_start_r")
+        end_r = st.number_input("Electric Machine End Reading", value=int(b_data.get("electric_end_reading", 0)), key="b_end_r")
+        hrs = st.number_input("Diesel Run Hours (5L/hr)", value=float(b_data.get("diesel_hours", 0.0)), key="b_diesel_hrs")
+        if st.button("Save Readings", key="btn_save_readings"):
             b_data["electric_start_reading"] = start_r
             b_data["electric_end_reading"] = end_r
             b_data["diesel_hours"] = hrs
@@ -298,9 +298,9 @@ with tabs[1]:
         st.write(f"**Pending Balance Due:** ₹{banquet_pending_balance:,}")
 
     st.subheader("Record Payment to Vendor")
-    bp_desc = st.text_input("Payment Description", key="bp_desc")
-    bp_amt = st.number_input("Amount Paid", key="bp_amt", value=0.0)
-    if st.button("Save Payment"):
+    bp_desc = st.text_input("Payment Description", key="b_pay_desc")
+    bp_amt = st.number_input("Amount Paid", key="b_pay_amt", value=0.0)
+    if st.button("Save Payment", key="btn_save_banquet_payment"):
         if bp_desc and bp_amt > 0:
             b_data.setdefault("settlement_payments", []).append({"desc": bp_desc, "amount": bp_amt, "date": get_current_date()})
             save_data(db)
@@ -312,8 +312,8 @@ with tabs[1]:
 with tabs[2]:
     st.header("2. Catering - Shanti Caterer")
     st.info(f"**Contact:** {c_data.get('contact')} | **Rate:** ₹650/plate")
-    plates = st.number_input("Total Number of Plates", value=int(c_data.get("number_of_plates", 0)), step=1)
-    if st.button("Update Plates Count"):
+    plates = st.number_input("Total Number of Plates", value=int(c_data.get("number_of_plates", 0)), step=1, key="c_plates_input")
+    if st.button("Update Plates Count", key="btn_update_plates"):
         c_data["number_of_plates"] = plates
         save_data(db)
         st.rerun()
@@ -321,9 +321,9 @@ with tabs[2]:
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Ashirwad Catering")
-        ash_desc = st.text_input("Ashirwad Description", key="ash_desc")
-        ash_amt = st.number_input("Amount", key="ash_amt", value=0.0)
-        if st.button("Add/Deduct Ashirwad"):
+        ash_desc = st.text_input("Ashirwad Description", key="c_ash_desc")
+        ash_amt = st.number_input("Amount", key="c_ash_amt", value=0.0)
+        if st.button("Add/Deduct Ashirwad", key="btn_c_ash"):
             if ash_desc and ash_amt != 0:
                 c_data.setdefault("ashirwad_catering_expenses", []).append({"desc": ash_desc, "amount": ash_amt, "date": get_current_date()})
                 save_data(db)
@@ -332,9 +332,9 @@ with tabs[2]:
             st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
     with c2:
         st.subheader("Daily Food")
-        df_desc = st.text_input("Daily Food Description", key="df_desc")
-        df_amt = st.number_input("Amount", key="df_amt", value=0.0)
-        if st.button("Add/Deduct Daily Food"):
+        df_desc = st.text_input("Daily Food Description", key="c_df_desc")
+        df_amt = st.number_input("Amount", key="c_df_amt", value=0.0)
+        if st.button("Add/Deduct Daily Food", key="btn_c_df"):
             if df_desc and df_amt != 0:
                 c_data.setdefault("daily_food_expenses", []).append({"desc": df_desc, "amount": df_amt, "date": get_current_date()})
                 save_data(db)
@@ -348,7 +348,7 @@ with tabs[3]:
     st.info(f"**Contracted Total:** ₹1,00,000 | **Advance Paid:** ₹10,000")
     dec_desc = st.text_input("Adjustment Description", key="dec_desc")
     dec_amt = st.number_input("Amount", key="dec_amt", value=0.0)
-    if st.button("Save Decorator Adjustment"):
+    if st.button("Save Decorator Adjustment", key="btn_save_decorator"):
         if dec_desc and dec_amt != 0:
             d_data.setdefault("extra_adjustments", []).append({"desc": dec_desc, "amount": dec_amt, "date": get_current_date()})
             save_data(db)
@@ -364,9 +364,9 @@ with tabs[4]:
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Pre-Wedding Items")
-        pw_desc = st.text_input("Pre-Wedding Description", key="pw_desc")
-        pw_amt = st.number_input("Amount", key="pw_amt", value=0.0)
-        if st.button("Add Pre-Wedding"):
+        pw_desc = st.text_input("Pre-Wedding Description", key="p_pw_desc")
+        pw_amt = st.number_input("Amount", key="p_pw_amt", value=0.0)
+        if st.button("Add Pre-Wedding", key="btn_add_pw"):
             if pw_desc and pw_amt != 0:
                 p_data.setdefault("pre_wedding_items", []).append({"desc": pw_desc, "amount": pw_amt, "date": get_current_date()})
                 save_data(db)
@@ -375,9 +375,9 @@ with tabs[4]:
             st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
     with c2:
         st.subheader("Wedding Extra Items")
-        we_desc = st.text_input("Extra Description", key="we_desc")
-        we_amt = st.number_input("Amount", key="we_amt", value=0.0)
-        if st.button("Add Wedding Extra"):
+        we_desc = st.text_input("Extra Description", key="p_we_desc")
+        we_amt = st.number_input("Amount", key="p_we_amt", value=0.0)
+        if st.button("Add Wedding Extra", key="btn_add_we"):
             if we_desc and we_amt != 0:
                 p_data.setdefault("wedding_extra_items", []).append({"desc": we_desc, "amount": we_amt, "date": get_current_date()})
                 save_data(db)
@@ -389,9 +389,9 @@ with tabs[4]:
 with tabs[5]:
     st.header("5. Band Party - Bajna")
     st.info("**Contracted Total:** ₹46,000 | **Advance Paid:** ₹5,000")
-    b_desc = st.text_input("Adjustment Description", key="b_adj_desc")
-    b_amt = st.number_input("Amount", key="b_adj_amt", value=0.0)
-    if st.button("Save Band Adjustment"):
+    b_desc = st.text_input("Adjustment Description", key="bp_adj_desc")
+    b_amt = st.number_input("Amount", key="bp_adj_amt", value=0.0)
+    if st.button("Save Band Adjustment", key="btn_save_band"):
         if b_desc and b_amt != 0:
             bp_data.setdefault("adjustments", []).append({"desc": b_desc, "amount": b_amt, "date": get_current_date()})
             save_data(db)
@@ -403,9 +403,9 @@ with tabs[5]:
 with tabs[6]:
     st.header("6. Makeup - Gaya Baidya")
     st.info("**Contracted Total:** ₹17,000 | **Advance Paid:** ₹3,000")
-    m_desc = st.text_input("Adjustment Description", key="m_adj_desc")
-    m_amt = st.number_input("Amount", key="m_adj_amt", value=0.0)
-    if st.button("Save Makeup Adjustment"):
+    m_desc = st.text_input("Adjustment Description", key="mk_adj_desc")
+    m_amt = st.number_input("Amount", key="mk_adj_amt", value=0.0)
+    if st.button("Save Makeup Adjustment", key="btn_save_makeup"):
         if m_desc and m_amt != 0:
             m_data.setdefault("adjustments", []).append({"desc": m_desc, "amount": m_amt, "date": get_current_date()})
             save_data(db)
@@ -416,10 +416,10 @@ with tabs[6]:
 # TAB 7: MARRIAGE CARD
 with tabs[7]:
     st.header("7. Marriage Card")
-    c_rate = st.number_input("Rate per Card (₹)", value=float(mc_data.get("per_card_price", 0)))
-    c_count = st.number_input("Card Count", value=int(mc_data.get("total_cards", 0)), step=1)
-    c_extra = st.number_input("Extra Charges (₹)", value=float(mc_data.get("extra_cost", 0)))
-    if st.button("Save Card Details"):
+    c_rate = st.number_input("Rate per Card (₹)", value=float(mc_data.get("per_card_price", 0)), key="mc_rate")
+    c_count = st.number_input("Card Count", value=int(mc_data.get("total_cards", 0)), step=1, key="mc_count")
+    c_extra = st.number_input("Extra Charges (₹)", value=float(mc_data.get("extra_cost", 0)), key="mc_extra")
+    if st.button("Save Card Details", key="btn_save_card"):
         mc_data["per_card_price"] = c_rate
         mc_data["total_cards"] = c_count
         mc_data["extra_cost"] = c_extra
@@ -430,9 +430,9 @@ with tabs[7]:
 # TAB 8: VEHICLE
 with tabs[8]:
     st.header("8. Vehicle")
-    v_desc = st.text_input("Vehicle Expense Description", key="veh_desc")
-    v_amt = st.number_input("Amount", key="veh_amt", value=0.0)
-    if st.button("Add/Deduct Vehicle Expense"):
+    v_desc = st.text_input("Vehicle Expense Description", key="vh_desc")
+    v_amt = st.number_input("Amount", key="vh_amt", value=0.0)
+    if st.button("Add/Deduct Vehicle Expense", key="btn_save_vehicle"):
         if v_desc and v_amt != 0:
             db["vehicle"].setdefault("expenses", []).append({"desc": v_desc, "amount": v_amt, "date": get_current_date()})
             save_data(db)
@@ -443,9 +443,9 @@ with tabs[8]:
 # TAB 9: PRONAMI
 with tabs[9]:
     st.header("9. Pronami")
-    pr_desc = st.text_input("Pronami Description", key="pro_desc")
-    pr_amt = st.number_input("Amount", key="pro_amt", value=0.0)
-    if st.button("Add/Deduct Pronami"):
+    pr_desc = st.text_input("Pronami Description", key="pr_item_desc")
+    pr_amt = st.number_input("Amount", key="pr_item_amt", value=0.0)
+    if st.button("Add/Deduct Pronami", key="btn_save_pronami"):
         if pr_desc and pr_amt != 0:
             db["pronami"].setdefault("expenses", []).append({"desc": pr_desc, "amount": pr_amt, "date": get_current_date()})
             save_data(db)
@@ -459,9 +459,9 @@ with tabs[10]:
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("1. Patipatra Tattha")
-        p_desc = st.text_input("Item Description", key="p_tat_desc")
-        p_amt = st.number_input("Amount", key="p_tat_amt", value=0.0)
-        if st.button("Add/Deduct Patipatra"):
+        p_desc = st.text_input("Item Description", key="t_pati_desc")
+        p_amt = st.number_input("Amount", key="t_pati_amt", value=0.0)
+        if st.button("Add/Deduct Patipatra", key="btn_save_t_patipatra"):
             if p_desc and p_amt != 0:
                 db["tattha"].setdefault("patipatra", []).append({"desc": p_desc, "amount": p_amt, "date": get_current_date()})
                 save_data(db)
@@ -470,9 +470,9 @@ with tabs[10]:
             st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
     with c2:
         st.subheader("2. Ashirwad Tattha")
-        a_desc = st.text_input("Item Description", key="a_tat_desc")
-        a_amt = st.number_input("Amount", key="a_tat_amt", value=0.0)
-        if st.button("Add/Deduct Ashirwad"):
+        a_desc = st.text_input("Item Description", key="t_ash_desc")
+        a_amt = st.number_input("Amount", key="t_ash_amt", value=0.0)
+        if st.button("Add/Deduct Ashirwad", key="btn_save_t_ashirwad"):
             if a_desc and a_amt != 0:
                 db["tattha"].setdefault("ashirwad", []).append({"desc": a_desc, "amount": a_amt, "date": get_current_date()})
                 save_data(db)
@@ -483,10 +483,10 @@ with tabs[10]:
 # TAB 11: SHOPPING
 with tabs[11]:
     st.header("11. Shopping")
-    shop_sec = st.selectbox("Category", ["moumita", "father", "mother", "my_shopping", "briddhi"], format_func=lambda x: {"moumita": "Moumita Shopping", "father": "Father Shopping", "mother": "Mother Shopping", "my_shopping": "My Shopping", "briddhi": "Briddhi Shopping"}[x])
-    s_desc = st.text_input("Item Description", key="s_desc")
-    s_amt = st.number_input("Amount", key="s_amt", value=0.0)
-    if st.button("Save Shopping"):
+    shop_sec = st.selectbox("Category", ["moumita", "father", "mother", "my_shopping", "briddhi"], format_func=lambda x: {"moumita": "Moumita Shopping", "father": "Father Shopping", "mother": "Mother Shopping", "my_shopping": "My Shopping", "briddhi": "Briddhi Shopping"}[x], key="s_cat_select")
+    s_desc = st.text_input("Item Description", key="s_item_desc")
+    s_amt = st.number_input("Amount", key="s_item_amt", value=0.0)
+    if st.button("Save Shopping", key="btn_save_shopping"):
         if s_desc and s_amt != 0:
             db["shopping"].setdefault(shop_sec, []).append({"desc": s_desc, "amount": s_amt, "date": get_current_date()})
             save_data(db)
@@ -497,9 +497,9 @@ with tabs[11]:
 # TAB 12: MISCELLANEOUS
 with tabs[12]:
     st.header("12. Miscellaneous")
-    misc_desc = st.text_input("Expense Description", key="misc_desc")
-    misc_amt = st.number_input("Amount", key="misc_amt", value=0.0)
-    if st.button("Save Miscellaneous"):
+    misc_desc = st.text_input("Expense Description", key="misc_item_desc")
+    misc_amt = st.number_input("Amount", key="misc_item_amt", value=0.0)
+    if st.button("Save Miscellaneous", key="btn_save_misc"):
         if misc_desc and misc_amt != 0:
             db["miscellaneous"].setdefault("expenses", []).append({"desc": misc_desc, "amount": misc_amt, "date": get_current_date()})
             save_data(db)
