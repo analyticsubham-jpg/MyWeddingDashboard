@@ -5,31 +5,98 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wedding Expense Live Dashboard</title>
   <style>
-    :root { --primary: #ff477e; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; --red: #ef4444; --green: #22c55e; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 12px; }
-    h2, h3 { margin: 6px 0; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-    .kpi-card { background: var(--card); padding: 14px; border-radius: 10px; border-left: 4px solid var(--primary); text-align: center; }
+    :root {
+      --primary: #ff477e;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --accent: #38bdf8;
+      --red: #ef4444;
+      --green: #22c55e;
+      --border: #334155;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+    }
+    h2, h3, h4 { margin: 8px 0; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .kpi-card {
+      background: var(--card);
+      padding: 14px;
+      border-radius: 10px;
+      border-left: 4px solid var(--primary);
+      text-align: center;
+    }
     .kpi-title { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; }
     .kpi-val { font-size: 1.25rem; font-weight: bold; margin-top: 4px; }
-    .tabs { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #334155; }
-    .tab-btn { background: var(--card); color: var(--text); border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
+    .tabs {
+      display: flex;
+      overflow-x: auto;
+      gap: 6px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      background: var(--card);
+      color: var(--text);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: 0.9rem;
+    }
     .tab-btn.active { background: var(--primary); font-weight: bold; }
     .tab-content { display: none; background: var(--card); padding: 16px; border-radius: 10px; }
     .tab-content.active { display: block; }
-    input, select, button { width: 100%; box-sizing: border-box; padding: 10px; margin: 6px 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 0.95rem; }
-    button { background: var(--primary); border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    input, select, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      margin: 6px 0;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      font-size: 0.95rem;
+    }
+    button {
+      background: var(--primary);
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
-    th, td { border: 1px solid #334155; padding: 10px; text-align: center; }
+    th, td { border: 1px solid var(--border); padding: 10px; text-align: center; }
     th { background: #0f172a; }
-    .log-item { background: #0f172a; padding: 10px; border-radius: 6px; margin-top: 6px; font-size: 0.85rem; border-left: 3px solid var(--accent); }
+    .log-item {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 6px;
+      font-size: 0.85rem;
+      border-left: 3px solid var(--accent);
+    }
     .overbudget { color: var(--red); font-weight: bold; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
 
   <h2>💍 Wedding Expense Live Dashboard</h2>
-  <p style="font-size:0.8rem; color:#94a3b8;">Real-time 2-way Google Sheets Sync</p>
+  <p style="font-size:0.8rem; color:#94a3b8;">Real-time 2-way Google Sheets Sync (Never Sleeps)</p>
 
   <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-title">Total Budget</div><div class="kpi-val" id="kpi-budget">₹8,53,000</div></div>
@@ -44,10 +111,17 @@
     <button class="tab-btn" onclick="switchTab('catering')">2. Catering</button>
     <button class="tab-btn" onclick="switchTab('decorator')">3. Decorator</button>
     <button class="tab-btn" onclick="switchTab('photo')">4. Photography</button>
-    <button class="tab-btn" onclick="switchTab('card')">7. Card</button>
-    <button class="tab-btn" onclick="switchTab('log')">➕ Quick Entry</button>
+    <button class="tab-btn" onclick="switchTab('band')">5. Band Party</button>
+    <button class="tab-btn" onclick="switchTab('makeup')">6. Makeup</button>
+    <button class="tab-btn" onclick="switchTab('card')">7. Marriage Card</button>
+    <button class="tab-btn" onclick="switchTab('vehicle')">8. Vehicle</button>
+    <button class="tab-btn" onclick="switchTab('pronami')">9. Pronami</button>
+    <button class="tab-btn" onclick="switchTab('tattha')">10. Tattha</button>
+    <button class="tab-btn" onclick="switchTab('shopping')">11. Shopping</button>
+    <button class="tab-btn" onclick="switchTab('misc')">12. Miscellaneous</button>
   </div>
 
+  <!-- TAB 0: OVERVIEW -->
   <div id="tab-overview" class="tab-content active">
     <h3>Category Wise Breakdown</h3>
     <table>
@@ -58,62 +132,194 @@
     </table>
   </div>
 
+  <!-- TAB 1: BANQUET -->
   <div id="tab-banquet" class="tab-content">
     <h3>1. Banquet Hall - Sanai Bhawan</h3>
-    <p><b>Fixed Advance:</b> ₹5,000 | <b>Base Fare:</b> ₹25,000</p>
-    <label>Start Electric Reading</label><input type="number" id="b-elec-start" />
-    <label>End Electric Reading</label><input type="number" id="b-elec-end" />
-    <label>Diesel Run Hours (5L/hr @ ₹95/L)</label><input type="number" step="0.1" id="b-diesel-hrs" />
-    <button onclick="saveBanquetConfig()">Save Meter Readings</button>
-    <div id="banquet-summary" style="margin-top:14px;"></div>
+    <p><b>Contact:</b> 9046288819 / 9475807506 | <b>Base Fare:</b> ₹25,000 | <b>Advance:</b> ₹5,000</p>
+    <p><b>Facilities:</b> 200 Chairs, 25 Tables, Music System, 2 Rooms with Bed</p>
+    <div class="grid-2">
+      <div>
+        <h4>Meter & Fuel Readings</h4>
+        <label>Electric Machine Start Reading</label><input type="number" id="b-elec-start" />
+        <label>Electric Machine End Reading</label><input type="number" id="b-elec-end" />
+        <label>Diesel Run Hours (5L/hr @ ₹95/L)</label><input type="number" step="0.1" id="b-diesel-hrs" />
+        <button onclick="saveBanquetConfig()">Save Meter Readings</button>
+      </div>
+      <div>
+        <h4>Financial Status</h4>
+        <div id="banquet-summary"></div>
+      </div>
+    </div>
   </div>
 
+  <!-- TAB 2: CATERING -->
   <div id="tab-catering" class="tab-content">
     <h3>2. Catering - Shanti Caterer</h3>
-    <p><b>Rate:</b> ₹650/plate | <b>Advance:</b> ₹2,000</p>
-    <label>Total Plates Count</label><input type="number" id="c-plates" />
-    <button onclick="savePlates()">Save Plate Count</button>
+    <p><b>Contact:</b> 7478714579 (Biman) | <b>Rate:</b> ₹650/plate | <b>Advance Paid:</b> ₹2,000</p>
+    <label>Total Number of Plates</label><input type="number" id="c-plates" />
+    <button onclick="savePlates()">Update Plate Count</button>
+    <h4 id="main-catering-total" style="margin-top:12px; color:var(--accent);"></h4>
+    <hr style="border-color:var(--border); margin:16px 0;" />
+    <div class="grid-2">
+      <div>
+        <h4>Ashirwad Catering Sub-section</h4>
+        <input type="text" id="ash-desc" placeholder="Item description" />
+        <input type="number" id="ash-amt" placeholder="Amount (Use - to deduct)" />
+        <button onclick="addGenericExpense('catering', 'Ashirwad Catering', 'ash-desc', 'ash-amt')">Add Ashirwad Expense</button>
+        <div id="ash-logs" style="margin-top:10px;"></div>
+      </div>
+      <div>
+        <h4>Marriage Daily Food Expenses</h4>
+        <input type="text" id="df-desc" placeholder="Daily food description" />
+        <input type="number" id="df-amt" placeholder="Amount (Use - to deduct)" />
+        <button onclick="addGenericExpense('catering', 'Daily Food', 'df-desc', 'df-amt')">Add Daily Food Expense</button>
+        <div id="df-logs" style="margin-top:10px;"></div>
+      </div>
+    </div>
   </div>
 
+  <!-- TAB 3: DECORATOR -->
+  <div id="tab-decorator" class="tab-content">
+    <h3>3. Decorator - Ishtikutuk</h3>
+    <p><b>Contact:</b> 9733431683 | <b>Contracted Total:</b> ₹1,00,000 | <b>Advance Paid:</b> ₹10,000 | <b>Max Budget:</b> ₹1,10,000</p>
+    <h4>Add / Deduct Extra Decoration Charges</h4>
+    <input type="text" id="dec-desc" placeholder="Description (e.g. Extra lighting)" />
+    <input type="number" id="dec-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('decorator', 'General', 'dec-desc', 'dec-amt')">Save Adjustment</button>
+    <div id="decorator-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 4: PHOTOGRAPHY -->
   <div id="tab-photo" class="tab-content">
     <h3>4. Photography - Bijit Photography</h3>
-    <p><b>Contract:</b> ₹1,45,000 (Subham: ₹70,000 | Bride: ₹75,000)</p>
-    <div id="photo-settlement" style="margin-bottom:12px;"></div>
+    <p><b>Contact:</b> 8927482343 | <b>Wedding Base:</b> ₹1,45,000 (Subham: ₹70,000 | Bride: ₹75,000) | <b>Advance Paid by Subham:</b> ₹42,000</p>
+    <div id="photo-settlement"></div>
+    <hr style="border-color:var(--border); margin:16px 0;" />
+    <div class="grid-2">
+      <div>
+        <h4>Pre-Wedding Expenses (50/50 Split)</h4>
+        <input type="text" id="pw-desc" placeholder="Description (e.g. Breakfast, Vehicle)" />
+        <input type="number" id="pw-amt" placeholder="Amount (₹)" />
+        <button onclick="addGenericExpense('photo', 'Pre-Wedding', 'pw-desc', 'pw-amt')">Add Pre-Wedding Expense</button>
+        <div id="pw-logs" style="margin-top:10px;"></div>
+      </div>
+      <div>
+        <h4>Wedding Extra Expenses (50/50 Split)</h4>
+        <input type="text" id="we-desc" placeholder="Extra item description" />
+        <input type="number" id="we-amt" placeholder="Amount (₹)" />
+        <button onclick="addGenericExpense('photo', 'Wedding Extra', 'we-desc', 'we-amt')">Add Wedding Extra</button>
+        <div id="we-logs" style="margin-top:10px;"></div>
+      </div>
+    </div>
   </div>
 
+  <!-- TAB 5: BAND PARTY -->
+  <div id="tab-band" class="tab-content">
+    <h3>5. Band Party - Bajna</h3>
+    <p><b>Contact:</b> 9734939796 | <b>Contracted Total:</b> ₹46,000 | <b>Advance Paid:</b> ₹5,000</p>
+    <h4>Add / Deduct Adjustment</h4>
+    <input type="text" id="band-desc" placeholder="Description" />
+    <input type="number" id="band-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('band', 'General', 'band-desc', 'band-amt')">Save Adjustment</button>
+    <div id="band-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 6: MAKEUP -->
+  <div id="tab-makeup" class="tab-content">
+    <h3>6. Makeup - Gaya Baidya</h3>
+    <p><b>Contact:</b> 7001418719 | <b>Contracted Total:</b> ₹17,000 | <b>Advance Paid:</b> ₹3,000</p>
+    <h4>Add / Deduct Adjustment</h4>
+    <input type="text" id="makeup-desc" placeholder="Description" />
+    <input type="number" id="makeup-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('makeup', 'General', 'makeup-desc', 'makeup-amt')">Save Adjustment</button>
+    <div id="makeup-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 7: MARRIAGE CARD -->
   <div id="tab-card" class="tab-content">
     <h3>7. Marriage Card</h3>
     <label>Per Piece Rate (₹)</label><input type="number" id="card-rate" />
     <label>Total Cards Count</label><input type="number" id="card-count" />
     <label>Extra Printing / Courier (₹)</label><input type="number" id="card-extra" />
     <button onclick="saveCardConfig()">Save Card Calculation</button>
+    <h4 id="card-total-display" style="margin-top:14px; color:var(--accent);"></h4>
   </div>
 
-  <div id="tab-log" class="tab-content">
-    <h3>➕ Add / Deduct Transaction</h3>
-    <label>Category</label>
-    <select id="log-cat" onchange="updateSubCats()">
-      <option value="catering">Catering (Ashirwad / Daily)</option>
-      <option value="decorator">Decorator</option>
-      <option value="photo">Photography (Pre-Wedding/Wedding Extra)</option>
-      <option value="band">Band Party</option>
-      <option value="makeup">Makeup</option>
-      <option value="vehicle">Vehicle</option>
-      <option value="pronami">Pronami</option>
-      <option value="tattha">Tattha</option>
-      <option value="shopping">Shopping</option>
-      <option value="misc">Miscellaneous</option>
+  <!-- TAB 8: VEHICLE -->
+  <div id="tab-vehicle" class="tab-content">
+    <h3>8. Vehicle</h3>
+    <p><b>Expected Budget:</b> ₹40,000</p>
+    <h4>Add / Deduct Vehicle Expense</h4>
+    <input type="text" id="veh-desc" placeholder="Description (e.g. Patipatra vehicle, Ashirwad vehicle)" />
+    <input type="number" id="veh-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('vehicle', 'General', 'veh-desc', 'veh-amt')">Save Vehicle Expense</button>
+    <div id="vehicle-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 9: PRONAMI -->
+  <div id="tab-pronami" class="tab-content">
+    <h3>9. Pronami</h3>
+    <p><b>Expected Budget:</b> ₹30,000</p>
+    <h4>Add / Deduct Pronami Expense</h4>
+    <input type="text" id="pro-desc" placeholder="Description (e.g. Choto Pisi pronami)" />
+    <input type="number" id="pro-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('pronami', 'General', 'pro-desc', 'pro-amt')">Save Pronami</button>
+    <div id="pronami-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 10: TATTHA -->
+  <div id="tab-tattha" class="tab-content">
+    <h3>10. Tattha</h3>
+    <p><b>Expected Budget:</b> ₹30,000</p>
+    <div class="grid-2">
+      <div>
+        <h4>1. Patipatra Tattha</h4>
+        <input type="text" id="t-pati-desc" placeholder="Item description (e.g. Saree, Sweets)" />
+        <input type="number" id="t-pati-amt" placeholder="Amount (Use - to deduct)" />
+        <button onclick="addGenericExpense('tattha', 'Patipatra Tattha', 't-pati-desc', 't-pati-amt')">Add Patipatra Item</button>
+        <div id="tat-pati-logs" style="margin-top:10px;"></div>
+      </div>
+      <div>
+        <h4>2. Ashirwad Tattha</h4>
+        <input type="text" id="t-ash-desc" placeholder="Item description (e.g. Saree, Cosmetics)" />
+        <input type="number" id="t-ash-amt" placeholder="Amount (Use - to deduct)" />
+        <button onclick="addGenericExpense('tattha', 'Ashirwad Tattha', 't-ash-desc', 't-ash-amt')">Add Ashirwad Item</button>
+        <div id="tat-ash-logs" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 11: SHOPPING -->
+  <div id="tab-shopping" class="tab-content">
+    <h3>11. Shopping (5 Sub-sections)</h3>
+    <p><b>Expected Budget:</b> ₹40,000</p>
+    <label>Select Category</label>
+    <select id="shop-subcat">
+      <option value="Moumita">Moumita Shopping</option>
+      <option value="Father">Father Shopping</option>
+      <option value="Mother">Mother Shopping</option>
+      <option value="My Shopping">My Shopping</option>
+      <option value="Briddhi">Briddhi Shopping</option>
     </select>
-    <label>Sub-section</label><select id="log-subcat"></select>
-    <label>Description</label><input type="text" id="log-desc" placeholder="e.g. Saree, Breakfast, Stage change" />
-    <label>Amount (Positive to Add, Negative to Deduct)</label><input type="number" id="log-amt" />
-    <button onclick="submitExpense()">Submit Entry</button>
-    <h3 style="margin-top:16px;">Live Activity Log</h3>
-    <div id="recent-logs"></div>
+    <input type="text" id="shop-desc" placeholder="Item description" />
+    <input type="number" id="shop-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addShoppingExpense()">Save Shopping Expense</button>
+    <div id="shopping-logs" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- TAB 12: MISCELLANEOUS -->
+  <div id="tab-misc" class="tab-content">
+    <h3>12. Miscellaneous (Other Expenses)</h3>
+    <input type="text" id="misc-desc" placeholder="Expense description / reason" />
+    <input type="number" id="misc-amt" placeholder="Amount (Use - to deduct)" />
+    <button onclick="addGenericExpense('misc', 'General', 'misc-desc', 'misc-amt')">Save Miscellaneous Expense</button>
+    <div id="misc-logs" style="margin-top:14px;"></div>
   </div>
 
   <script>
+    // Paste your Google Apps Script Web App URL below
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwB8mOx6isDnkS7i9pTPal_lryZ3j5zLWTf91c4kblNjCQCq2iOZ4h9Wmw3rhwwerID/exec";
+
     const TOTAL_BUDGET = 853000;
     const BUDGETS = {
       banquet: 35000, catering: 400000, decorator: 110000, photo: 100000,
@@ -122,24 +328,6 @@
     };
 
     let state = { expenses: [], config: {} };
-
-    const SUB_CATS = {
-      catering: ["Ashirwad Catering", "Daily Food"],
-      photo: ["Pre-Wedding", "Wedding Extra"],
-      tattha: ["Patipatra Tattha", "Ashirwad Tattha"],
-      shopping: ["Moumita", "Father", "Mother", "My Shopping", "Briddhi"],
-      vehicle: ["General"], pronami: ["General"], band: ["General"], makeup: ["General"], decorator: ["General"], misc: ["General"]
-    };
-
-    function updateSubCats() {
-      const cat = document.getElementById("log-cat").value;
-      const sub = document.getElementById("log-subcat");
-      sub.innerHTML = "";
-      (SUB_CATS[cat] || ["General"]).forEach(s => {
-        sub.innerHTML += `<option value="${s}">${s}</option>`;
-      });
-    }
-    updateSubCats();
 
     function switchTab(id) {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -171,17 +359,23 @@
       document.getElementById("card-count").value = c.card_count || 0;
       document.getElementById("card-extra").value = c.card_extra || 0;
 
+      // 1. Banquet
       const units = Math.max(0, (Number(c.electric_end) || 0) - (Number(c.electric_start) || 0));
       const elecCost = units * 20;
       const dieselCost = (Number(c.diesel_hours) || 0) * 5 * 95;
       const banquetSpend = 5000 + elecCost + dieselCost;
 
+      // 2. Catering
       const platesCost = (Number(c.catering_plates) || 0) * 650;
       const cateringCustom = sumCategory("catering");
       const cateringSpend = (platesCost > 0 ? platesCost : 2000) + cateringCustom;
+      document.getElementById("main-catering-total").innerText = `Main Catering (Plates × ₹650): ₹${platesCost.toLocaleString()}`;
 
+      // 7. Card
       const cardCost = ((Number(c.card_price) || 0) * (Number(c.card_count) || 0)) + (Number(c.card_extra) || 0);
+      document.getElementById("card-total-display").innerText = `Total Card Expense: ₹${cardCost.toLocaleString()}`;
 
+      // 4. Photography
       const photoExtras = sumCategory("photo");
       const photoGross = 42000 + photoExtras;
       const groomShare = 70000 + (photoExtras / 2);
@@ -223,8 +417,9 @@
       document.getElementById("overview-tbody").innerHTML = tbody;
 
       document.getElementById("banquet-summary").innerHTML = `
-        <div class="log-item">Electricity: ${units} units (₹${elecCost}) | Diesel: ₹${dieselCost}</div>
-        <div class="log-item"><b>Total Banquet Spend:</b> ₹${banquetSpend.toLocaleString()}</div>
+        <div class="log-item">Electricity (${units} units @ ₹20): ₹${elecCost.toLocaleString()}</div>
+        <div class="log-item">Diesel (${c.diesel_hours || 0} hrs @ 5L/hr): ₹${dieselCost.toLocaleString()}</div>
+        <div class="log-item"><b>Total Actual Spend:</b> ₹${banquetSpend.toLocaleString()}</div>
       `;
 
       document.getElementById("photo-settlement").innerHTML = `
@@ -232,11 +427,29 @@
         <div class="log-item" style="border-left-color:var(--primary);"><b>Receivable from Bride:</b> ₹${brideShare.toLocaleString()}</div>
       `;
 
-      let logHtml = "";
-      state.expenses.slice().reverse().forEach(e => {
-        logHtml += `<div class="log-item">[${e.timestamp}] <b>${e.category.toUpperCase()} (${e.subSection})</b>: ${e.desc} - <b>₹${e.amount}</b></div>`;
+      // Render Individual Logs
+      renderLogs("catering", "Ashirwad Catering", "ash-logs");
+      renderLogs("catering", "Daily Food", "df-logs");
+      renderLogs("decorator", "General", "decorator-logs");
+      renderLogs("photo", "Pre-Wedding", "pw-logs");
+      renderLogs("photo", "Wedding Extra", "we-logs");
+      renderLogs("band", "General", "band-logs");
+      renderLogs("makeup", "General", "makeup-logs");
+      renderLogs("vehicle", "General", "vehicle-logs");
+      renderLogs("pronami", "General", "pronami-logs");
+      renderLogs("tattha", "Patipatra Tattha", "tat-pati-logs");
+      renderLogs("tattha", "Ashirwad Tattha", "tat-ash-logs");
+      renderLogs("shopping", null, "shopping-logs");
+      renderLogs("misc", "General", "misc-logs");
+    }
+
+    function renderLogs(cat, sub, containerId) {
+      const items = (state.expenses || []).filter(e => e.category === cat && (!sub || e.subSection === sub));
+      let html = "";
+      items.slice().reverse().forEach(e => {
+        html += `<div class="log-item">[${e.timestamp}] <b>${e.subSection ? e.subSection + ': ' : ''}${e.desc}</b> - ₹${Number(e.amount).toLocaleString()}</div>`;
       });
-      document.getElementById("recent-logs").innerHTML = logHtml || "<p>No entries yet.</p>";
+      document.getElementById(containerId).innerHTML = html || "<p style='font-size:0.8rem; color:#64748b;'>No entries logged yet.</p>";
     }
 
     function sumCategory(cat) {
@@ -245,19 +458,42 @@
         .reduce((sum, e) => sum + Number(e.amount), 0);
     }
 
-    async function submitExpense() {
+    async function addGenericExpense(cat, sub, descId, amtId) {
+      const desc = document.getElementById(descId).value;
+      const amt = Number(document.getElementById(amtId).value);
+      if (!desc || !amt) return alert("Please fill description and amount");
+      
       const payload = {
         action: "add_expense",
         timestamp: new Date().toLocaleString(),
-        category: document.getElementById("log-cat").value,
-        subSection: document.getElementById("log-subcat").value,
-        desc: document.getElementById("log-desc").value,
-        amount: Number(document.getElementById("log-amt").value)
+        category: cat,
+        subSection: sub,
+        desc: desc,
+        amount: amt
       };
-      if (!payload.desc || !payload.amount) return alert("Fill description and amount");
       await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
-      document.getElementById("log-desc").value = "";
-      document.getElementById("log-amt").value = "";
+      document.getElementById(descId).value = "";
+      document.getElementById(amtId).value = "";
+      loadData();
+    }
+
+    async function addShoppingExpense() {
+      const sub = document.getElementById("shop-subcat").value;
+      const desc = document.getElementById("shop-desc").value;
+      const amt = Number(document.getElementById("shop-amt").value);
+      if (!desc || !amt) return alert("Please fill description and amount");
+      
+      const payload = {
+        action: "add_expense",
+        timestamp: new Date().toLocaleString(),
+        category: "shopping",
+        subSection: sub,
+        desc: desc,
+        amount: amt
+      };
+      await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("shop-desc").value = "";
+      document.getElementById("shop-amt").value = "";
       loadData();
     }
 
