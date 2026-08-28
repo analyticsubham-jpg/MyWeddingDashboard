@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-import os
+import requests
 from datetime import datetime
 
 # Page Configuration
@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# CONSTANTS & INITIAL DATA STRUCTURE
+# CONSTANTS & BUDGETS
 # -----------------------------------------------------------------------------
 TOTAL_BUDGET = 853000
 
@@ -117,44 +117,43 @@ DEFAULT_DATA = {
     }
 }
 
-DATA_FILE = "wedding_data.json"
+# -----------------------------------------------------------------------------
+# CLOUD PERSISTENCE
+# -----------------------------------------------------------------------------
+BIN_ID = st.secrets.get("JSONBIN_BIN_ID", "")
+API_KEY = st.secrets.get("JSONBIN_API_KEY", "")
 
-# -----------------------------------------------------------------------------
-# PERSISTENCE HELPERS
-# -----------------------------------------------------------------------------
 def load_data():
-    if os.path.exists(DATA_FILE):
+    if BIN_ID and API_KEY:
         try:
-            with open(DATA_FILE, "r") as f:
-                loaded_data = json.load(f)
-                return loaded_data
+            url = f"https://api.jsonbin.io/v3/b/{BIN_ID}/latest"
+            headers = {"X-Master-Key": API_KEY}
+            res = requests.get(url, headers=headers)
+            if res.status_code == 200:
+                record = res.json().get("record", {})
+                if record:
+                    return record
         except Exception:
             pass
     return DEFAULT_DATA
 
 def save_data(data):
     st.session_state.db = data
-    try:
-        with open(DATA_FILE, "w") as f:
-            json.dump(data, f, indent=4)
-    except Exception:
-        pass
+    if BIN_ID and API_KEY:
+        try:
+            url = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
+            headers = {
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY
+            }
+            requests.put(url, headers=headers, json=data)
+        except Exception as e:
+            st.error(f"Save failed: {e}")
 
 if "db" not in st.session_state:
     st.session_state.db = load_data()
 
 db = st.session_state.db
-
-if "tattha" not in db:
-    db["tattha"] = {"patipatra": [], "ashirwad": []}
-if "catering" in db and "ashirwad_catering_expenses" not in db["catering"]:
-    db["catering"]["ashirwad_catering_expenses"] = []
-if "miscellaneous" not in db:
-    db["miscellaneous"] = {"expenses": []}
-if "banquet" in db and "settlement_payments" not in db["banquet"]:
-    db["banquet"]["settlement_payments"] = []
-if "pronami" not in db:
-    db["pronami"] = {"expenses": []}
 
 def get_current_date():
     return datetime.now().strftime("%d-%b-%Y %H:%M")
@@ -162,90 +161,65 @@ def get_current_date():
 # -----------------------------------------------------------------------------
 # CALCULATIONS
 # -----------------------------------------------------------------------------
-# 1. Banquet
-b_data = db["banquet"]
+b_data = db.setdefault("banquet", DEFAULT_DATA["banquet"])
 units_consumed = max(0, b_data.get("electric_end_reading", 0) - b_data.get("electric_start_reading", 0))
 electric_cost = units_consumed * b_data.get("electric_rate", 20)
 diesel_hours = float(b_data.get("diesel_hours", 0.0))
 diesel_cost = diesel_hours * b_data.get("diesel_rate_per_hr", 5) * b_data.get("diesel_price_per_liter", 95)
-banquet_extra = sum(item["amount"] for item in b_data.get("extra_expenses", []))
-banquet_calculated_total_cost = b_data.get("total_fare", 25000) + electric_cost + diesel_cost + banquet_extra
-
+banquet_calculated_total_cost = b_data.get("total_fare", 25000) + electric_cost + diesel_cost + sum(item["amount"] for item in b_data.get("extra_expenses", []))
 banquet_additional_payments = sum(item["amount"] for item in b_data.get("settlement_payments", []))
 banquet_total_paid = b_data.get("advance_paid", 5000) + banquet_additional_payments
 banquet_pending_balance = max(0, banquet_calculated_total_cost - banquet_total_paid)
-
 banquet_total_spend = banquet_total_paid
 
-# 2. Catering
-c_data = db["catering"]
+c_data = db.setdefault("catering", DEFAULT_DATA["catering"])
 main_catering_total = c_data.get("number_of_plates", 0) * c_data.get("per_plate_rate", 650)
-ashirwad_catering_expenses = c_data.setdefault("ashirwad_catering_expenses", [])
-ashirwad_catering_total = sum(item["amount"] for item in ashirwad_catering_expenses)
-daily_food_expenses = c_data.setdefault("daily_food_expenses", [])
-daily_food_total = sum(item["amount"] for item in daily_food_expenses)
+ashirwad_catering_total = sum(item["amount"] for item in c_data.setdefault("ashirwad_catering_expenses", []))
+daily_food_total = sum(item["amount"] for item in c_data.setdefault("daily_food_expenses", []))
 catering_total_spend = (c_data.get("advance_paid", 0) if c_data.get("number_of_plates", 0) == 0 else main_catering_total) + ashirwad_catering_total + daily_food_total
 
-# 3. Decorator
-d_data = db["decorator"]
-decorator_extra = sum(item["amount"] for item in d_data.get("extra_adjustments", []))
-decorator_total_spend = d_data.get("advance_paid", 0) + decorator_extra
+d_data = db.setdefault("decorator", DEFAULT_DATA["decorator"])
+decorator_total_spend = d_data.get("advance_paid", 0) + sum(item["amount"] for item in d_data.setdefault("extra_adjustments", []))
 
-# 4. Photography
-p_data = db["photography"]
-pre_wedding_total = sum(item["amount"] for item in p_data.get("pre_wedding_items", []))
-wedding_extra_total = sum(item["amount"] for item in p_data.get("wedding_extra_items", []))
+p_data = db.setdefault("photography", DEFAULT_DATA["photography"])
+pre_wedding_total = sum(item["amount"] for item in p_data.setdefault("pre_wedding_items", []))
+wedding_extra_total = sum(item["amount"] for item in p_data.setdefault("wedding_extra_items", []))
 shared_photo_extras = pre_wedding_total + wedding_extra_total
 photography_gross_spend = p_data.get("subham_advance_paid", 0) + shared_photo_extras
-
 groom_photo_share = p_data.get("groom_wedding_share", 70000) + (shared_photo_extras / 2.0)
 bride_photo_share = p_data.get("bride_wedding_share", 75000) + (shared_photo_extras / 2.0)
 photo_receivable_from_bride = bride_photo_share
 
-# 5. Band Party
-bp_data = db["band_party"]
-band_total_spend = bp_data.get("advance_paid", 0) + sum(item["amount"] for item in bp_data.get("adjustments", []))
+bp_data = db.setdefault("band_party", DEFAULT_DATA["band_party"])
+band_total_spend = bp_data.get("advance_paid", 0) + sum(item["amount"] for item in bp_data.setdefault("adjustments", []))
 
-# 6. Makeup
-m_data = db["makeup"]
-makeup_total_spend = m_data.get("advance_paid", 0) + sum(item["amount"] for item in m_data.get("adjustments", []))
+m_data = db.setdefault("makeup", DEFAULT_DATA["makeup"])
+makeup_total_spend = m_data.get("advance_paid", 0) + sum(item["amount"] for item in m_data.setdefault("adjustments", []))
 
-# 7. Marriage Card
-mc_data = db["marriage_card"]
+mc_data = db.setdefault("marriage_card", DEFAULT_DATA["marriage_card"])
 card_total_spend = (mc_data.get("per_card_price", 0) * mc_data.get("total_cards", 0)) + mc_data.get("extra_cost", 0)
 
-# 8. Vehicle
-v_total_spend = sum(item["amount"] for item in db["vehicle"].get("expenses", []))
+v_total_spend = sum(item["amount"] for item in db.setdefault("vehicle", {}).setdefault("expenses", []))
+pr_total_spend = sum(item["amount"] for item in db.setdefault("pronami", {}).setdefault("expenses", []))
+tattha_total_spend = sum(item["amount"] for item in db.setdefault("tattha", {}).setdefault("patipatra", [])) + sum(item["amount"] for item in db.setdefault("tattha", {}).setdefault("ashirwad", []))
 
-# 9. Pronami
-pronami_expenses = db.setdefault("pronami", {}).setdefault("expenses", [])
-pr_total_spend = sum(item["amount"] for item in pronami_expenses)
+s_data = db.setdefault("shopping", DEFAULT_DATA["shopping"])
+shopping_total_spend = (
+    sum(item["amount"] for item in s_data.setdefault("moumita", [])) +
+    sum(item["amount"] for item in s_data.setdefault("father", [])) +
+    sum(item["amount"] for item in s_data.setdefault("mother", [])) +
+    sum(item["amount"] for item in s_data.setdefault("my_shopping", [])) +
+    sum(item["amount"] for item in s_data.setdefault("briddhi", []))
+)
 
-# 10. Tattha
-t_patipatra = sum(item["amount"] for item in db["tattha"].get("patipatra", []))
-t_ashirwad = sum(item["amount"] for item in db["tattha"].get("ashirwad", []))
-tattha_total_spend = t_patipatra + t_ashirwad
+misc_total_spend = sum(item["amount"] for item in db.setdefault("miscellaneous", {}).setdefault("expenses", []))
 
-# 11. Shopping
-s_moumita = sum(item["amount"] for item in db["shopping"].get("moumita", []))
-s_father = sum(item["amount"] for item in db["shopping"].get("father", []))
-s_mother = sum(item["amount"] for item in db["shopping"].get("mother", []))
-s_my = sum(item["amount"] for item in db["shopping"].get("my_shopping", []))
-s_briddhi = sum(item["amount"] for item in db["shopping"].get("briddhi", []))
-shopping_total_spend = s_moumita + s_father + s_mother + s_my + s_briddhi
-
-# 12. Miscellaneous (Others)
-misc_total_spend = sum(item["amount"] for item in db.setdefault("miscellaneous", {}).get("expenses", []))
-
-# Grand Totals
 grand_actual_spend = (
     banquet_total_spend + catering_total_spend + decorator_total_spend + photography_gross_spend +
     band_total_spend + makeup_total_spend + card_total_spend + v_total_spend + pr_total_spend +
     tattha_total_spend + shopping_total_spend + misc_total_spend
 )
-
 remaining_budget = TOTAL_BUDGET - grand_actual_spend
-
 total_advances_paid = (
     b_data.get("advance_paid", 0) + c_data.get("advance_paid", 0) + d_data.get("advance_paid", 0) +
     p_data.get("subham_advance_paid", 0) + bp_data.get("advance_paid", 0) + m_data.get("advance_paid", 0)
@@ -254,10 +228,8 @@ total_advances_paid = (
 # -----------------------------------------------------------------------------
 # MAIN UI
 # -----------------------------------------------------------------------------
-st.title("💍 My Wedding Expense & Status Dashboard")
-st.caption("Real-time updates, date-stamped activity logging & mobile ready")
+st.title("💍 My Wedding Expense Dashboard")
 
-# KPI Summary Cards
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total Overall Budget", f"₹{TOTAL_BUDGET:,.2f}")
 col2.metric("Total Actual Spent", f"₹{grand_actual_spend:,.2f}")
@@ -266,29 +238,15 @@ col4.metric("Total Advances Paid", f"₹{total_advances_paid:,.2f}")
 
 st.divider()
 
-# TAB NAVIGATION FOR ALL PARAMETERS
 tabs = st.tabs([
-    "📊 Overview",
-    "1. Banquet Hall",
-    "2. Catering",
-    "3. Decorator",
-    "4. Photography",
-    "5. Band Party",
-    "6. Makeup",
-    "7. Marriage Card",
-    "8. Vehicle",
-    "9. Pronami",
-    "10. Tattha",
-    "11. Shopping",
-    "12. Miscellaneous"
+    "📊 Overview", "1. Banquet Hall", "2. Catering", "3. Decorator",
+    "4. Photography", "5. Band Party", "6. Makeup", "7. Marriage Card",
+    "8. Vehicle", "9. Pronami", "10. Tattha", "11. Shopping", "12. Miscellaneous"
 ])
 
-# -----------------------------------------------------------------------------
 # TAB 0: OVERVIEW
-# -----------------------------------------------------------------------------
 with tabs[0]:
     st.subheader("Category Wise Breakdown")
-    
     categories_data = [
         {"Category": "Banquet Hall", "Expected Budget (₹)": EXPECTED_BUDGETS["banquet"], "Actual Spend (₹)": banquet_total_spend},
         {"Category": "Catering", "Expected Budget (₹)": EXPECTED_BUDGETS["catering"], "Actual Spend (₹)": catering_total_spend},
@@ -303,209 +261,122 @@ with tabs[0]:
         {"Category": "Shopping", "Expected Budget (₹)": EXPECTED_BUDGETS["shopping"], "Actual Spend (₹)": shopping_total_spend},
         {"Category": "Miscellaneous (Others)", "Expected Budget (₹)": EXPECTED_BUDGETS["miscellaneous"], "Actual Spend (₹)": misc_total_spend},
     ]
-
     df = pd.DataFrame(categories_data)
-    
-    def calc_pct(row):
-        ref = row["Expected Budget (₹)"] if row["Expected Budget (₹)"] > 0 else TOTAL_BUDGET
-        return (row["Actual Spend (₹)"] / ref) * 100 if ref > 0 else 0.0
+    df["Spend %"] = df.apply(lambda r: (r["Actual Spend (₹)"] / (r["Expected Budget (₹)"] if r["Expected Budget (₹)"] > 0 else TOTAL_BUDGET)) * 100, axis=1)
 
-    df["Spend %"] = df.apply(calc_pct, axis=1)
+    def highlight_overbudget(s):
+        return ['color: red; font-weight: bold' if v > 100 else '' for v in s]
 
-    def style_dataframe(df):
-        def highlight_overbudget(s):
-            return ['color: red; font-weight: bold' if v > 100 else '' for v in s]
-        
-        return df.style.format({
-            "Expected Budget (₹)": lambda x: f"₹{x:,.2f}",
-            "Actual Spend (₹)": lambda x: f"₹{x:,.2f}",
-            "Spend %": lambda x: f"{x:.1f}%"
-        }).apply(highlight_overbudget, subset=["Spend %"])
+    styled_df = df.style.format({
+        "Expected Budget (₹)": lambda x: f"₹{x:,.2f}",
+        "Actual Spend (₹)": lambda x: f"₹{x:,.2f}",
+        "Spend %": lambda x: f"{x:.1f}%"
+    }).apply(highlight_overbudget, subset=["Spend %"])
 
-    st.dataframe(
-        style_dataframe(df),
-        use_container_width=True,
-        column_config={
-            "Category": st.column_config.Column(alignment="center"),
-            "Expected Budget (₹)": st.column_config.Column(alignment="center"),
-            "Actual Spend (₹)": st.column_config.Column(alignment="center"),
-            "Spend %": st.column_config.Column(alignment="center"),
-        }
-    )
+    st.dataframe(styled_df, use_container_width=True)
 
-# -----------------------------------------------------------------------------
-# TAB 1: BANQUET HALL
-# -----------------------------------------------------------------------------
+# TAB 1: BANQUET
 with tabs[1]:
     st.header("1. Banquet Hall - Sanai Bhawan")
-    st.info(f"**Contact:** {b_data.get('contacts','')} | **Booked:** {b_data.get('booking_date','')} | **Initial Advance Paid:** ₹{b_data.get('advance_paid',5000):,}")
-    st.markdown("**Facilities Included:** " + ", ".join(b_data.get("facilities", [])))
-    
+    st.info(f"**Contact:** {b_data.get('contacts')} | **Advance:** ₹{b_data.get('advance_paid', 5000):,}")
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("1. Meter & Fuel Readings")
+        st.subheader("Meter & Fuel Readings")
         start_r = st.number_input("Electric Machine Start Reading", value=int(b_data.get("electric_start_reading", 0)))
         end_r = st.number_input("Electric Machine End Reading", value=int(b_data.get("electric_end_reading", 0)))
         hrs = st.number_input("Diesel Run Hours (5L/hr)", value=float(b_data.get("diesel_hours", 0.0)))
-        
         if st.button("Save Readings"):
             b_data["electric_start_reading"] = start_r
             b_data["electric_end_reading"] = end_r
             b_data["diesel_hours"] = hrs
             save_data(db)
-            st.success("Readings Updated!")
             st.rerun()
-
     with c2:
-        st.subheader("2. Financial Status & Final Settlement")
-        st.write(f"**Base Fare:** ₹{b_data.get('total_fare',25000):,}")
-        st.write(f"**Electricity ({units_consumed} units @ ₹20/unit):** ₹{electric_cost:,}")
-        st.write(f"**Diesel ({diesel_hours:.1f} hrs @ 5L/hr):** ₹{diesel_cost:,}")
-        st.markdown(f"### **Total Calculated Hall Cost:** ₹{banquet_calculated_total_cost:,}")
-        st.write(f"**Initial Advance Paid:** ₹{b_data.get('advance_paid',5000):,}")
-        st.write(f"**Additional Payments Logged:** ₹{banquet_additional_payments:,}")
-        st.write(f"**Total Paid So Far (Actual Spend):** ₹{banquet_total_paid:,}")
-        
-        if banquet_pending_balance > 0:
-            st.warning(f"**Pending Balance Due to Vendor:** ₹{banquet_pending_balance:,}")
-        else:
-            st.success("**Full Amount Paid / Settled!**")
+        st.subheader("Financial Status")
+        st.write(f"**Base Fare:** ₹25,000 | **Electricity:** ₹{electric_cost:,} | **Diesel:** ₹{diesel_cost:,}")
+        st.write(f"**Total Cost:** ₹{banquet_calculated_total_cost:,} | **Paid So Far:** ₹{banquet_total_paid:,}")
+        st.write(f"**Pending Balance Due:** ₹{banquet_pending_balance:,}")
 
-    st.divider()
-    st.subheader("3. Log Final / Settlement Payments to Sanai Bhawan")
-    b_pay_desc = st.text_input("Payment Description (e.g., Remaining Base Fare, Electric & Diesel Final Settlement)", key="b_pay_desc")
-    b_pay_amt = st.number_input("Amount Paid (₹)", value=0.0, key="b_pay_amt")
-    
-    if st.button("Record Payment to Vendor"):
-        if b_pay_desc and b_pay_amt > 0:
-            b_data.setdefault("settlement_payments", []).append({
-                "desc": b_pay_desc,
-                "amount": b_pay_amt,
-                "date": get_current_date()
-            })
+    st.subheader("Record Payment to Vendor")
+    bp_desc = st.text_input("Payment Description", key="bp_desc")
+    bp_amt = st.number_input("Amount Paid", key="bp_amt", value=0.0)
+    if st.button("Save Payment"):
+        if bp_desc and bp_amt > 0:
+            b_data.setdefault("settlement_payments", []).append({"desc": bp_desc, "amount": bp_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Payment recorded successfully!")
             st.rerun()
-            
-    st.write("**Payment Log History:**")
-    if not b_data.get("settlement_payments"):
-        st.caption("No final payments logged yet besides the initial ₹5,000 advance.")
     for item in b_data.get("settlement_payments", []):
-        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 2: CATERING
-# -----------------------------------------------------------------------------
 with tabs[2]:
     st.header("2. Catering - Shanti Caterer")
-    st.info(f"**Contact:** {c_data.get('contact','')} | **Rate:** ₹{c_data.get('per_plate_rate',650)}/plate | **Advance:** ₹{c_data.get('advance_paid',0):,}")
-    
+    st.info(f"**Contact:** {c_data.get('contact')} | **Rate:** ₹650/plate")
     plates = st.number_input("Total Number of Plates", value=int(c_data.get("number_of_plates", 0)), step=1)
-    if st.button("Update Plate Count"):
+    if st.button("Update Plates Count"):
         c_data["number_of_plates"] = plates
         save_data(db)
-        st.success("Plates count saved!")
         st.rerun()
-        
-    st.subheader(f"Main Catering Total (Plates × ₹650): ₹{main_catering_total:,}")
-    st.divider()
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader("Ashirwad Catering Sub-section")
-        ash_desc = st.text_input("Ashirwad Food / Item Description", key="ash_desc")
-        ash_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="ash_amt", value=0.0)
-        
-        if st.button("Add/Deduct Ashirwad Expense"):
+    st.subheader(f"Main Catering: ₹{main_catering_total:,}")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Ashirwad Catering")
+        ash_desc = st.text_input("Ashirwad Description", key="ash_desc")
+        ash_amt = st.number_input("Amount", key="ash_amt", value=0.0)
+        if st.button("Add/Deduct Ashirwad"):
             if ash_desc and ash_amt != 0:
                 c_data.setdefault("ashirwad_catering_expenses", []).append({"desc": ash_desc, "amount": ash_amt, "date": get_current_date()})
                 save_data(db)
-                st.success("Ashirwad entry updated!")
                 st.rerun()
-                
-        st.write(f"**Total Ashirwad Catering Expense:** ₹{ashirwad_catering_total:,}")
-        st.markdown("---")
-        st.write("**Ashirwad Transaction Log:**")
-        if not ashirwad_catering_expenses:
-            st.caption("No items added yet.")
-        for item in ashirwad_catering_expenses:
-            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
-
-    with col_b:
-        st.subheader("Marriage Daily Food Expenses")
-        d_desc = st.text_input("Food Item / Day Description", key="df_desc")
-        d_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="df_amt", value=0.0)
-        
-        if st.button("Add/Deduct Daily Food Expense"):
-            if d_desc and d_amt != 0:
-                c_data.setdefault("daily_food_expenses", []).append({"desc": d_desc, "amount": d_amt, "date": get_current_date()})
+        for item in c_data.get("ashirwad_catering_expenses", []):
+            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+    with c2:
+        st.subheader("Daily Food")
+        df_desc = st.text_input("Daily Food Description", key="df_desc")
+        df_amt = st.number_input("Amount", key="df_amt", value=0.0)
+        if st.button("Add/Deduct Daily Food"):
+            if df_desc and df_amt != 0:
+                c_data.setdefault("daily_food_expenses", []).append({"desc": df_desc, "amount": df_amt, "date": get_current_date()})
                 save_data(db)
-                st.success("Daily food entry saved!")
                 st.rerun()
-        
-        st.write(f"**Total Daily Food Expense:** ₹{daily_food_total:,}")
-        st.markdown("---")
-        st.write("**Daily Food Transaction Log:**")
-        if not daily_food_expenses:
-            st.caption("No items added yet.")
-        for item in daily_food_expenses:
-            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+        for item in c_data.get("daily_food_expenses", []):
+            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 3: DECORATOR
-# -----------------------------------------------------------------------------
 with tabs[3]:
     st.header("3. Decorator - Ishtikutuk")
-    st.info(f"**Contact:** {d_data.get('contact','')} | **Contracted Total:** ₹{d_data.get('contracted_total',0):,} | **Advance Paid:** ₹{d_data.get('advance_paid',0):,}")
-    
-    st.subheader("Add / Deduct Extra Decoration Charges")
-    dec_desc = st.text_input("Description (e.g. Extra Lighting / Stage Change)", key="dec_desc")
-    dec_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="dec_amt", value=0.0)
-    
-    if st.button("Save Decoration Adjustment"):
+    st.info(f"**Contracted Total:** ₹1,00,000 | **Advance Paid:** ₹10,000")
+    dec_desc = st.text_input("Adjustment Description", key="dec_desc")
+    dec_amt = st.number_input("Amount", key="dec_amt", value=0.0)
+    if st.button("Save Decorator Adjustment"):
         if dec_desc and dec_amt != 0:
             d_data.setdefault("extra_adjustments", []).append({"desc": dec_desc, "amount": dec_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Adjustment Saved!")
             st.rerun()
-            
-    st.subheader(f"Current Actual Spend: ₹{decorator_total_spend:,}")
     for item in d_data.get("extra_adjustments", []):
         st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 4: PHOTOGRAPHY
-# -----------------------------------------------------------------------------
 with tabs[4]:
     st.header("4. Photography - Bijit Photography")
-    st.info(f"**Contact:** {p_data.get('contact','')} | **Total Wedding Base:** ₹{p_data.get('wedding_gross',0):,}")
-    
-    st.subheader("Cost Sharing & Settlement Breakdown")
-    s_col1, s_col2, s_col3 = st.columns(3)
-    s_col1.metric("Subham (Groom) Total Share", f"₹{groom_photo_share:,.2f}")
-    s_col2.metric("Bride Total Share", f"₹{bride_photo_share:,.2f}")
-    s_col3.metric("Subham Advance Paid", f"₹{p_data.get('subham_advance_paid',0):,}")
-
-    st.warning(f"**Settlement Note:** Subham paid ₹{p_data.get('subham_advance_paid',0):,} advance. Receivable from Bride side: **₹{photo_receivable_from_bride:,.2f}**")
-
-    st.divider()
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
+    st.write(f"**Subham Share:** ₹{groom_photo_share:,.2f} | **Bride Share:** ₹{bride_photo_share:,.2f} | **Advance Paid by Subham:** ₹42,000")
+    st.warning(f"**Receivable from Bride Side:** ₹{photo_receivable_from_bride:,.2f}")
+    c1, c2 = st.columns(2)
+    with c1:
         st.subheader("Pre-Wedding Items")
-        pw_desc = st.text_input("Pre-wedding expense desc (e.g. Breakfast, Vehicle)", key="pw_desc")
-        pw_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="pw_amt", value=0.0)
-        if st.button("Add Pre-Wedding Expense"):
+        pw_desc = st.text_input("Pre-Wedding Description", key="pw_desc")
+        pw_amt = st.number_input("Amount", key="pw_amt", value=0.0)
+        if st.button("Add Pre-Wedding"):
             if pw_desc and pw_amt != 0:
                 p_data.setdefault("pre_wedding_items", []).append({"desc": pw_desc, "amount": pw_amt, "date": get_current_date()})
                 save_data(db)
                 st.rerun()
         for item in p_data.get("pre_wedding_items", []):
             st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
-
-    with col_p2:
-        st.subheader("Wedding Extra Expenses")
-        we_desc = st.text_input("Extra expense desc", key="we_desc")
-        we_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="we_amt", value=0.0)
+    with c2:
+        st.subheader("Wedding Extra Items")
+        we_desc = st.text_input("Extra Description", key="we_desc")
+        we_amt = st.number_input("Amount", key="we_amt", value=0.0)
         if st.button("Add Wedding Extra"):
             if we_desc and we_amt != 0:
                 p_data.setdefault("wedding_extra_items", []).append({"desc": we_desc, "amount": we_amt, "date": get_current_date()})
@@ -514,194 +385,124 @@ with tabs[4]:
         for item in p_data.get("wedding_extra_items", []):
             st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 5: BAND PARTY
-# -----------------------------------------------------------------------------
 with tabs[5]:
     st.header("5. Band Party - Bajna")
-    st.info(f"**Contact:** {bp_data.get('contact','')} | **Contracted Total:** ₹{bp_data.get('total',0):,} | **Advance Paid:** ₹{bp_data.get('advance_paid',0):,}")
-    
-    bp_desc = st.text_input("Adjustment Description", key="bp_desc")
-    bp_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="bp_amt", value=0.0)
-    if st.button("Save Band Party Adjustment"):
-        if bp_desc and bp_amt != 0:
-            bp_data.setdefault("adjustments", []).append({"desc": bp_desc, "amount": bp_amt, "date": get_current_date()})
+    st.info("**Contracted Total:** ₹46,000 | **Advance Paid:** ₹5,000")
+    b_desc = st.text_input("Adjustment Description", key="b_adj_desc")
+    b_amt = st.number_input("Amount", key="b_adj_amt", value=0.0)
+    if st.button("Save Band Adjustment"):
+        if b_desc and b_amt != 0:
+            bp_data.setdefault("adjustments", []).append({"desc": b_desc, "amount": b_amt, "date": get_current_date()})
             save_data(db)
             st.rerun()
-            
-    st.subheader(f"Current Actual Spend: ₹{band_total_spend:,}")
     for item in bp_data.get("adjustments", []):
         st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 6: MAKEUP
-# -----------------------------------------------------------------------------
 with tabs[6]:
     st.header("6. Makeup - Gaya Baidya")
-    st.info(f"**Contact:** {m_data.get('contact','')} | **Contracted Total:** ₹{m_data.get('total',0):,} | **Advance Paid:** ₹{m_data.get('advance_paid',0):,}")
-    
-    m_desc = st.text_input("Adjustment Description", key="m_desc")
-    m_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", key="m_amt", value=0.0)
+    st.info("**Contracted Total:** ₹17,000 | **Advance Paid:** ₹3,000")
+    m_desc = st.text_input("Adjustment Description", key="m_adj_desc")
+    m_amt = st.number_input("Amount", key="m_adj_amt", value=0.0)
     if st.button("Save Makeup Adjustment"):
         if m_desc and m_amt != 0:
             m_data.setdefault("adjustments", []).append({"desc": m_desc, "amount": m_amt, "date": get_current_date()})
             save_data(db)
             st.rerun()
-            
-    st.subheader(f"Current Actual Spend: ₹{makeup_total_spend:,}")
     for item in m_data.get("adjustments", []):
         st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 7: MARRIAGE CARD
-# -----------------------------------------------------------------------------
 with tabs[7]:
     st.header("7. Marriage Card")
-    c_price = st.number_input("Price per Card (₹)", value=float(mc_data.get("per_card_price", 0)))
-    c_count = st.number_input("Total Number of Cards", value=int(mc_data.get("total_cards", 0)), step=1)
-    c_extra = st.number_input("Extra Charges / Delivery / Printing (₹)", value=float(mc_data.get("extra_cost", 0)))
-    
+    c_rate = st.number_input("Rate per Card (₹)", value=float(mc_data.get("per_card_price", 0)))
+    c_count = st.number_input("Card Count", value=int(mc_data.get("total_cards", 0)), step=1)
+    c_extra = st.number_input("Extra Charges (₹)", value=float(mc_data.get("extra_cost", 0)))
     if st.button("Save Card Details"):
-        mc_data["per_card_price"] = c_price
+        mc_data["per_card_price"] = c_rate
         mc_data["total_cards"] = c_count
         mc_data["extra_cost"] = c_extra
         save_data(db)
-        st.success("Marriage Card expense updated!")
         st.rerun()
-        
-    st.subheader(f"Total Marriage Card Expense: ₹{card_total_spend:,}")
+    st.subheader(f"Total Card Expense: ₹{card_total_spend:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 8: VEHICLE
-# -----------------------------------------------------------------------------
 with tabs[8]:
     st.header("8. Vehicle")
-    v_desc = st.text_input("Vehicle Expense Description (e.g. Patipatra vehicle, Ashirwad vehicle)")
-    v_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", value=0.0, key="v_amt")
-    
-    if st.button("Add / Deduct Vehicle Expense"):
+    v_desc = st.text_input("Vehicle Expense Description", key="veh_desc")
+    v_amt = st.number_input("Amount", key="veh_amt", value=0.0)
+    if st.button("Add/Deduct Vehicle Expense"):
         if v_desc and v_amt != 0:
             db["vehicle"].setdefault("expenses", []).append({"desc": v_desc, "amount": v_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Vehicle entry saved!")
             st.rerun()
-            
-    st.subheader(f"Total Vehicle Expense: ₹{v_total_spend:,}")
     for item in db["vehicle"].get("expenses", []):
-        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 9: PRONAMI
-# -----------------------------------------------------------------------------
 with tabs[9]:
     st.header("9. Pronami")
-    pr_desc = st.text_input("Pronami Description (e.g. Choto Pisi pronami)", key="pr_desc")
-    pr_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", value=0.0, key="pr_amt")
-    
-    if st.button("Add / Deduct Pronami Expense"):
+    pr_desc = st.text_input("Pronami Description", key="pro_desc")
+    pr_amt = st.number_input("Amount", key="pro_amt", value=0.0)
+    if st.button("Add/Deduct Pronami"):
         if pr_desc and pr_amt != 0:
-            db.setdefault("pronami", {}).setdefault("expenses", []).append({"desc": pr_desc, "amount": pr_amt, "date": get_current_date()})
+            db["pronami"].setdefault("expenses", []).append({"desc": pr_desc, "amount": pr_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Pronami entry saved!")
             st.rerun()
-            
-    st.subheader(f"Total Pronami Expense: ₹{pr_total_spend:,}")
-    st.markdown("---")
-    st.write("**Pronami Transaction Log:**")
-    if not pronami_expenses:
-        st.caption("No pronami items added yet.")
-    for item in pronami_expenses:
-        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+    for item in db["pronami"].get("expenses", []):
+        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
-# TAB 10: TATTHA (PATIPATRA & ASHIRWAD)
-# -----------------------------------------------------------------------------
+# TAB 10: TATTHA
 with tabs[10]:
-    st.header("10. Tattha (2 Sub-sections)")
-    
-    col_t1, col_t2 = st.columns(2)
-    
-    with col_t1:
+    st.header("10. Tattha")
+    c1, c2 = st.columns(2)
+    with c1:
         st.subheader("1. Patipatra Tattha")
-        p_desc = st.text_input("Item Description (e.g. Saree, Sweets)", key="p_tat_desc")
-        p_amt = st.number_input("Amount (Use negative to deduct)", value=0.0, key="p_tat_amt")
-        
-        if st.button("Add / Deduct Patipatra Item"):
+        p_desc = st.text_input("Item Description", key="p_tat_desc")
+        p_amt = st.number_input("Amount", key="p_tat_amt", value=0.0)
+        if st.button("Add/Deduct Patipatra"):
             if p_desc and p_amt != 0:
                 db["tattha"].setdefault("patipatra", []).append({"desc": p_desc, "amount": p_amt, "date": get_current_date()})
                 save_data(db)
-                st.success("Patipatra item saved!")
                 st.rerun()
-                
-        st.write(f"**Subtotal Patipatra Tattha:** ₹{t_patipatra:,}")
         for item in db["tattha"].get("patipatra", []):
-            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
-            
-    with col_t2:
+            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
+    with c2:
         st.subheader("2. Ashirwad Tattha")
-        a_desc = st.text_input("Item Description (e.g. Saree, Cosmetics)", key="a_tat_desc")
-        a_amt = st.number_input("Amount (Use negative to deduct)", value=0.0, key="a_tat_amt")
-        
-        if st.button("Add / Deduct Ashirwad Item"):
+        a_desc = st.text_input("Item Description", key="a_tat_desc")
+        a_amt = st.number_input("Amount", key="a_tat_amt", value=0.0)
+        if st.button("Add/Deduct Ashirwad"):
             if a_desc and a_amt != 0:
                 db["tattha"].setdefault("ashirwad", []).append({"desc": a_desc, "amount": a_amt, "date": get_current_date()})
                 save_data(db)
-                st.success("Ashirwad item saved!")
                 st.rerun()
-                
-        st.write(f"**Subtotal Ashirwad Tattha:** ₹{t_ashirwad:,}")
         for item in db["tattha"].get("ashirwad", []):
-            st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
-            
-    st.divider()
-    st.subheader(f"Total Combined Tattha Expense: ₹{tattha_total_spend:,}")
+            st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 11: SHOPPING
-# -----------------------------------------------------------------------------
 with tabs[11]:
-    st.header("11. Shopping (5 Sub-sections)")
-    sections = ["moumita", "father", "mother", "my_shopping", "briddhi"]
-    labels = ["Moumita Shopping", "Father Shopping", "Mother Shopping", "My Shopping", "Briddhi Shopping"]
-    
-    selected_sec = st.selectbox("Select Shopping Category", options=sections, format_func=lambda x: labels[sections.index(x)])
-    
-    item_desc = st.text_input("Item Description")
-    item_amt = st.number_input("Amount (Use negative value to deduct)", value=0.0)
-    
-    if st.button("Add / Deduct Shopping Expense"):
-        if item_desc and item_amt != 0:
-            db["shopping"].setdefault(selected_sec, []).append({"desc": item_desc, "amount": item_amt, "date": get_current_date()})
+    st.header("11. Shopping")
+    shop_sec = st.selectbox("Category", ["moumita", "father", "mother", "my_shopping", "briddhi"], format_func=lambda x: {"moumita": "Moumita Shopping", "father": "Father Shopping", "mother": "Mother Shopping", "my_shopping": "My Shopping", "briddhi": "Briddhi Shopping"}[x])
+    s_desc = st.text_input("Item Description", key="s_desc")
+    s_amt = st.number_input("Amount", key="s_amt", value=0.0)
+    if st.button("Save Shopping"):
+        if s_desc and s_amt != 0:
+            db["shopping"].setdefault(shop_sec, []).append({"desc": s_desc, "amount": s_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Entry Saved!")
             st.rerun()
-            
-    st.subheader(f"Current Entries for {labels[sections.index(selected_sec)]}")
-    for item in db["shopping"].get(selected_sec, []):
-        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+    for item in db["shopping"].get(shop_sec, []):
+        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
 
-# -----------------------------------------------------------------------------
 # TAB 12: MISCELLANEOUS
-# -----------------------------------------------------------------------------
 with tabs[12]:
-    st.header("12. Miscellaneous (Other Expenses)")
-    st.caption("Add any unlisted or uncategorized wedding expenses here.")
-    
-    misc_desc = st.text_input("Expense Description / Reason", key="misc_desc")
-    misc_amt = st.number_input("Amount (Positive to Add, Negative to Deduct)", value=0.0, key="misc_amt")
-    
-    if st.button("Add / Deduct Miscellaneous Expense"):
+    st.header("12. Miscellaneous")
+    misc_desc = st.text_input("Expense Description", key="misc_desc")
+    misc_amt = st.number_input("Amount", key="misc_amt", value=0.0)
+    if st.button("Save Miscellaneous"):
         if misc_desc and misc_amt != 0:
-            db.setdefault("miscellaneous", {}).setdefault("expenses", []).append({"desc": misc_desc, "amount": misc_amt, "date": get_current_date()})
+            db["miscellaneous"].setdefault("expenses", []).append({"desc": misc_desc, "amount": misc_amt, "date": get_current_date()})
             save_data(db)
-            st.success("Miscellaneous expense entry saved!")
             st.rerun()
-            
-    st.subheader(f"Total Miscellaneous Expense: ₹{misc_total_spend:,}")
-    st.markdown("---")
-    st.write("**Miscellaneous Transaction Log:**")
-    misc_list = db.get("miscellaneous", {}).get("expenses", [])
-    if not misc_list:
-        st.caption("No miscellaneous items added yet.")
-    for item in misc_list:
-        st.write(f"- [{item.get('date', 'N/A')}] **{item['desc']}**: ₹{item['amount']:,}")
+    for item in db["miscellaneous"].get("expenses", []):
+        st.write(f"- [{item.get('date', 'N/A')}] {item['desc']}: ₹{item['amount']:,}")
